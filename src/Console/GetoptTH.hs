@@ -90,7 +90,7 @@ import Console.Getopt.OptDesc   ( OptDesc
 -- concatM -----------------------------
 
 concatM :: Monad m => [m [a]] -> m [a]
-concatM = (liftM concat) . sequence
+concatM = liftM concat . sequence
 
 -- mkopts ----------------------------------------------------------------------
 
@@ -165,12 +165,12 @@ mkopts getoptName arity arg_type optcfgs = do
       -- error for getoptName
       -- name of a variable to hold the list of calls to mkOpt (getoptsx_ above)
       cfgName  = mkName (getoptName ++ "_")
-      optdescs = map read optcfgs
-      opts     = map mkopt optdescs ++ [ helpmeQ arity arg_type ]
+      optdescs = fmap read optcfgs
+      opts     = fmap mkopt optdescs ++ [ helpmeQ arity arg_type ]
       -- assign a list of options (returned by mkOpt) to a name
       -- (getoptsx_ = [ mkOpt ... ] above)
       asgn_mkopts :: [Exp] -> DecsQ
-      asgn_mkopts o  = return $ [assignN cfgName (ListE o)]
+      asgn_mkopts o  = return [assignN cfgName (ListE o)]
 
       -- create a record to hold parsed but not effected values; that is, in the
       -- case of non-IO values, the end result; but in the case of IO values, a
@@ -181,7 +181,7 @@ mkopts getoptName arity arg_type optcfgs = do
       -- (data Getoptsx__ = Getoptsx__ { ... } above)
       precord :: DecsQ
       precord = mkLensedRecordDef typename__
-                                  (map precordDefFields optdescs)
+                                  (fmap precordDefFields optdescs)
                                   [''Show]
 
 
@@ -189,7 +189,7 @@ mkopts getoptName arity arg_type optcfgs = do
       -- (data Getoptsx = Getoptsx { ... } above)
       record :: DecsQ
       record = mkLensedRecord typename
-                                 (map recordFields optdescs)
+                                 (fmap recordFields optdescs)
                                  [''Show]
 
       -- the effector is a function of type GetoptName__ -> IO GetoptName;
@@ -221,7 +221,7 @@ mkopts getoptName arity arg_type optcfgs = do
           LamE [ VarP g ] (DoE ( binds ++
                                 [ NoBindS (InfixE (Just (VarE 'return))
                                                  (VarE '($))
-                                                 (Just (mAppE ((ConE $ mkName typename) : map VarE bs)))
+                                                 (Just (mAppE ((ConE $ mkName typename) : fmap VarE bs)))
                                          )
                                                                                                                   ]))
 
@@ -232,42 +232,42 @@ mkopts getoptName arity arg_type optcfgs = do
         a <- newName "a"
         -- (Show a) => ArgArity -> String -> (String -> IO a)
         --          -> IO ([a], typename)
-        let typeSig = (tsArrows [ ConT ''ArgArity
-                                , ConT ''String
-                                , tsArrows [ ConT ''String
-                                           , (AppT (ConT ''IO) (VarT a)) ]
-                                , AppT (ConT ''IO)
-                                       (tupleL [ (listOfN a)
-                                               , (ConT $ mkName typename) ])
-                                ])
+        let typeSig = tsArrows [ ConT ''ArgArity
+                               , ConT ''String
+                               , tsArrows [ ConT ''String
+                                          , AppT (ConT ''IO) (VarT a) ]
+                               , AppT (ConT ''IO)
+                                      (tupleL [ listOfN a
+                                              , ConT $ mkName typename ])
+                               ]
 
             lhs = AppE (VarE 'getopts) (VarE cfgName)
             rhs = AppE (VarE 't2apply) (VarE $ mkName effectName)
 
-        effector >>= \c -> (return $
-           [ -- assign getoptName lhs --  (AppE (VarE 'getopts) (VarE cfgName))
-  -- getoptsx = (getopts getoptsx_) ... (t2apply getoptsx_effect)
-             assign getoptName (InfixE (Just lhs) (VarE '(...)) (Just rhs))
+        effector >>= \c ->
+          return [ -- assign getoptName lhs --  (AppE (VarE 'getopts) (VarE cfgName))
+                   -- getoptsx = (getopts getoptsx_) ... (t2apply getoptsx_effect)
+                   assign getoptName (InfixE (Just lhs) (VarE '(...)) (Just rhs))
   -- getoptsx_effect g = do
   --       string_x <- return (((fromMaybe "") . (view s___)) g
   --       (return $ (Getoptsx string_x))
   --   :: Getoptsx__ -> IO Getoptsx
-           , assign effectName
-                    (SigE c (tsArrows [ ConT $ mkName typename__
-                                      , AppT (ConT ''IO)
-                                             (ConT $ mkName typename)
-                                      ]))
-           ])
+                 , assign effectName
+                     (SigE c (tsArrows [ ConT $ mkName typename__
+                                       , AppT (ConT ''IO)
+                                              (ConT $ mkName typename)
+                                       ]))
+                 ]
 
   concatM [ precord, record
           -- assign a list of mkOpt calls to the chosen var
-          , (asgn_mkopts =<< sequence opts)
+          , asgn_mkopts =<< sequence opts
           , assign_getopt
           ]
 
 -- | like (.), but for a (first) fn of 3 args rather than 1
 (...) :: (a -> b -> c -> d) -> (d -> e) -> a -> b -> c -> e
-(...) f g = \ a b c -> g (f a b c)
+(f ... g) a b c = g (f a b c)
 
 t2apply :: Monad m => (b -> m b') -> m (a, b) -> m (a, b')
 t2apply effect ab = do

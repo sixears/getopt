@@ -40,6 +40,7 @@ import Console.GetoptTH  ( mkopts )
 
 --X $( makeLenses ''Opts )
 
+arity :: ArgArity
 arity = ArgSome 1 3
 
 --X instance Default Opts where
@@ -102,6 +103,7 @@ $( mkopts "getoptsx" (ArgSome 1 3) "filename"
 
 ----------------------------------------
 
+main :: IO ()
 main = do
   -- XXX is this arity used?  Seems to be redundant with the one to mkopts 
   --     above

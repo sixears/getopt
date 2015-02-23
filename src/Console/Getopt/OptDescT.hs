@@ -26,7 +26,7 @@ import Data.Default  ( Default( def ) )
 
 -- lenses ------------------------------
 
-import Control.Lens  ( makeLenses )
+import Control.Lens  ( (^.), makeLenses )
 
 -- template-haskell --------------------
 
@@ -78,23 +78,24 @@ instance Default OptDesc where
 -- Show --------------------------------
 
 instance Show OptDesc where
-  show OptDesc { _names    = names
-               , _lensname = lensname
-               , _typename = typename
-               , _summary  = summary
-               , _descn    = descn
-               , _dflt     = dflt
-               , _strt     = strt
-               }
+  show  o -- OptDesc { _names    = names
+               -- , _lensname = lensname
+               -- , _typename = typename
+               -- , _summary  = summary
+               -- , _descn    = descn
+               -- , _dflt     = dflt
+               -- , _strt     = strt
+               -- }
     = (concat . concat)
-        [ [ intercalate "|" names ]
-        , if lensname /= head names then [ ">", lensname ] else []
-        , [ "::", typename, dfst ]
-        , if null summary then [""] else ["#", summary]
-        , if null descn then [""] else ["\n", descn]
+        [ [ intercalate "|"  (o ^. names) ]
+        , if (o ^. lensname) /= head (o ^. names) 
+          then [ ">", o ^. lensname ] else []
+        , [ "::", o ^. typename, dfst ]
+        , if null (o ^. summary) then [""] else ["#", o ^. summary]
+        , if null (o ^. descn) then [""] else ["\n", o ^. descn]
         ]
-      where df = pprintQ dflt
-            st = pprintQ strt
+      where df = pprintQ (o ^. dflt)
+            st = pprintQ (o ^. strt)
             -- +-------------+----------+------------+
             -- | dflt | strt | uber-df  |    else    |
             -- +-------------+----------+------------+
@@ -104,13 +105,13 @@ instance Show OptDesc where
             -- +-------------+----------+------------+
             -- is a given exp the uber-default for a type (if there is one)
             isTypeD :: ExpQ -> Bool
-            isTypeD expq = case typeDefault typename of
+            isTypeD expq = case typeDefault (o ^. typename) of
                              Nothing -> False
                              -- comparing ExpQs just hangs, so compare the
                              -- prints
                              Just u  -> pprintQ expq == pprintQ u
             -- printed default & start value
             stStr = if st == "Data.Maybe.Nothing" then "" else "<" ++ st ++ ">"
-            dfst = if isTypeD dflt
+            dfst = if isTypeD (o ^. dflt)
                    then if "" == stStr then "" else "<>" ++ stStr
                    else "<" ++ df ++ ">" ++ stStr

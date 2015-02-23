@@ -60,12 +60,12 @@ instance Default Opts where
 optCfg :: [Option Opts]
 optCfg = [ mkOpt "fF" [ "foo", "fop", "fob"  ] (setval return foo)
                  "fooness" "foo desc" "" ""
-         , mkOpt "b"  [ "bob"  ] (setvalOW (return . (readType "Int")) bob)
+         , mkOpt "b"  [ "bob"  ] (setvalOW (return . readType "Int") bob)
                  "bobness" (    "Bob Holness is not so well known as the first"
                              ++ " radio voice of James Bond" )
                  "" ""
          , mkOpt "a"  [ "bar"  ]
-                 (setvals (\x -> openFile x ReadMode) bar)
+                 (setvals (`openFile` ReadMode) bar)
                  "barity"
                   (    "How many baas in a black sheep, that's all "
                     ++ "that you need to ask yourself" )
@@ -106,7 +106,7 @@ optCfg2 :: [Option Opts]
 optCfg2 = [ mkOpt "fF" [ "foo", "fop", "fob" ] (setval return foo)
                   "fooness" "foo desc" "" ""
           , mkOpt "bf" [ "bob", "foo" ]
-                  (setvalOW (return . (readType "Int")) bob)
+                  (setvalOW (return . readType "Int") bob)
                   "bobness" "Bob Holness" "" ""
           , mkOpt ""  []
                   (setvalOW (\x -> sequence [openFile x ReadMode]) bar)
@@ -199,11 +199,10 @@ main = do
                   , ("-d"             , "decrement")
                   , ("-D"             , "increment")
                   ]
-      pad n s = s ++ (replicate (n - length s) ' ')
+      pad n s = s ++ replicate (n - length s) ' '
       help    =    "usage: getopt-1 <option>*\n\noptions:\n  "
-                ++ (intercalate "\n  " $ 
-                      map (\ (a,b) -> pad 15 a ++ "  " ++ pad 30 b) 
-                          help_exp)
+                ++ intercalate "\n  "
+                     (fmap (\ (a,b) -> pad 15 a ++ "  " ++ pad 30 b) help_exp)
       dups_exp = [ "option has no name:"
                  , "  Option: \"\", [], barity, how many?, , "
                  , "option short name 'f' is used for multiple options:"
@@ -264,17 +263,17 @@ main = do
        , like  help1  []                                   "errs: no helps"
        , like  errs1  err1_exp                             "errs: errs"
 
-       , is args2           []       "help: no args"
-       , is opts2           def      "help: opt _bob=8"
-       , is (length help2)  2        "help: length 2"
-       , like (lines $ help2 !! 0)  (lines help)  "help: --help"
-       , is (help2 !! 1)  (intercalate " " [ "-b|--bob:\n  Bob Holness is"
-                                                , "not so well known as the"
-                                                , "first radio voice of James"
-                                                , "Bond"
-                                                ])
-                                     "help: --help=b"
-       , is errs2           []       "help: no errs"
+       , is args2           []                                "help: no args"
+       , is opts2           def                               "help: opt _bob=8"
+       , is (length help2)  2                                 "help: length 2"
+       , like (lines $ head help2)  (lines help)  "help: --help"
+       , is (help2 !! 1)  (unwords [ "-b|--bob:\n  Bob Holness is"
+                                   , "not so well known as the"
+                                   , "first radio voice of James"
+                                   , "Bond"
+                                   ])
+                                                              "help: --help=b"
+       , is errs2           []                                "help: no errs"
 
        , is args3  [ "one", "two", "False", "--three", "--foo" ]    "opts: args"
        -- split out the bar,alist parts because they need to be 'show'n to be
@@ -298,5 +297,5 @@ main = do
        , is errs3  []                                      "opts: no errs"
        -- , explain "dups" dups
        , ok (isLeft dups) "left dups"
-       , like (lines $ show $ left dups) dups_exp "dups"
+       , like (lines . show $ left dups) dups_exp "dups"
        ]

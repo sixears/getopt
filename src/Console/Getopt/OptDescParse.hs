@@ -125,11 +125,13 @@ startVal s t str = maybe (typeStartE t str) (readTS (optionTypename t)) s
 -- typeDefaultE -----------------------
 
 -- | like typeStartE, but for default
+typeDefaultE :: String -> String -> ExpQ
 typeDefaultE t str = fromMaybe (errf "default" t str) (typeDefault t)
 
 -- defaultVal --------------------------
 
 -- | like startVal, but for default
+defaultVal :: Maybe String -> String -> String -> ExpQ
 defaultVal s t str = maybe (typeDefaultE t str) 
                            (return . AppE (parser t) .LitE . StringL) s
 

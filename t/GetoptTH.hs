@@ -2,7 +2,6 @@
 
 -- base --------------------------------
 
-import Control.Monad       ( liftM )
 import Data.List           ( isInfixOf, partition )
 import System.Exit         ( ExitCode(..) )
 
@@ -76,10 +75,10 @@ check_invocation exec name iargs exp_exit exp_args exp_opt exp_items exp_err = d
   let (outs, spare) = partition (": " `isInfixOf`) (lines out)
       -- ensure we don't have a pattern failure by whacking "" on the end
       -- if necessary
-      (arstr : opt_str : rest) = outs ++ (replicate (2 - length outs) "")
+      (arstr : opt_str : rest) = outs ++ replicate (2 - length outs) ""
       (_argh, args) = splitOn2 ": " arstr
       (_opth, opts) = splitOn2 ": " opt_str
-      items = Map.fromList $ map (splitOn2 ": ") rest
+      items = Map.fromList $ fmap (splitOn2 ": ") rest
       nm = ((name ++ " ") ++)
       eexit :: Int -> ExitCode
       eexit 0 = ExitSuccess
@@ -120,7 +119,7 @@ main = do
       items = Map.fromList [ ("i", "4"), ("s", "\"\"")
                            , ("incr", "0"), ("decr", "6") ]
 
-  ((liftM concat) . sequence)
+  (fmap concat . sequence)
     [ -- return $ [ is c_exit ExitSuccess "compilation success" ]
 --    , 
       check "error invocation"  []    2 []  Nothing    Map.empty
@@ -143,10 +142,8 @@ main = do
                             , "--incr", "--incr", "5", "--incr" ]
             0 [ 2, 3, 5 ]
             (Just opt { _s = "jim", _i = 13, _incr = 3 })
-            (Map.union (Map.fromList [ ("i", "13")
-                                     , ("s", "\"jim\"")
-                                     , ("incr", "3") ])
-             items)
+            (Map.fromList [ ("i", "13") , ("s", "\"jim\"") , ("incr", "3") ]
+             `Map.union` items)
             []
     ]
     >>= test

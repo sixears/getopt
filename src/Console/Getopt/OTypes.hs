@@ -130,6 +130,7 @@ readParser :: String -> Exp
 readParser t = SigE (AppE (VarE 'readType) (LitE (StringL t)))
                     (AppT (AppT ArrowT (ConT ''String)) (ConT $ mkName t))
 
+readInt :: Exp
 readInt = readParser "Int"
 
 -- | open a file in read-only mode

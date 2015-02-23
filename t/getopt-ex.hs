@@ -50,14 +50,14 @@ instance Default Opts where
 optCfg :: [Option Opts]
 optCfg = [ mkOpt "s"  [ "string"  ] (setval return string) "string" "String" 
                  "String" "\"\""
-         , mkOpt "i"  [ "int"  ] (setvalOW (return . (readType "Int")) int)
+         , mkOpt "i"  [ "int"  ] (setvalOW (return . readType "Int") int)
                       "int" "Int" "Int" "0"
          , mkOpt "C"  [ "increment"  ] (setvalc int)
                       "increment" "Increment int" "Int" "0"
          , mkOpt "D"  [ "decrement"  ] (setvalc' int)
                       "decrement" "Decrement int" "Int" "0"
          , mkOpt "h"  [ "handle"  ]
-                 (setvals (\x -> openFile x ReadMode) handles)
+                 (setvals (`openFile` ReadMode) handles)
                  "handle" "Handle" "[Handle]" "[]"
          , mkOpt "b" [ "bool" ] (setvalt bool)
                  (    "the quick brown fox jumped over the lazy dog, then fell "

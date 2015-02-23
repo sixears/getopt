@@ -20,4 +20,4 @@ main :: IO ()
 main = do
   (args :: [Int], opts) <- getopts optCfg (ArgSome 1 3) "integer" (return . read)
   let s = maybe "" (++ " ") (opts ^. str)
-  putStrLn $ s ++ unwords (map show args)
+  putStrLn $ s ++ unwords (fmap show args)
