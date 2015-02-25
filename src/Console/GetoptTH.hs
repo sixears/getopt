@@ -241,7 +241,18 @@ helpmeQ arity arg_type =
 
          * [t]
 
+   * default
 
+     The value to return to the caller if the option is never invoked by the 
+     user.  The string provided is given to read.
+
+   * shorthelp
+
+     short summary used with --help; pref < 50 chars
+
+   * longhelp
+
+     long help used with --help=optname
 -}
 
 mkopts :: String                           -- ^ name of the getopts fn to
