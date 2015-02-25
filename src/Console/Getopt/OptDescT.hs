@@ -44,6 +44,8 @@ import Console.Getopt.OTypes  ( typeDefault )
 
 -- OptDesc =====================================================================
 
+-- | a cmdline option described
+
 data OptDesc = OptDesc { _names     :: [String]       -- ^ cmdline option names
                        , _lensname  :: String         -- ^ name of accessor fn
                        , _typename  :: String         -- ^ client name of value

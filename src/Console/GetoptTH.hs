@@ -80,7 +80,7 @@ import Console.Getopt.OptDesc   ( OptDesc
                                 , descn, dflt, dfltTxt, precordDefFields
                                 , recordFields, dfGetter
                                 , lensname, names, name, optSetVal, strt
-                                , strtval, summary
+                                , summary
                                 , enactor
                                 , pclvField, pclvTypename
                                 )
@@ -113,6 +113,10 @@ mkopt optdesc =
              , stringEQ $ dfltTxt optdesc        -- default value (for help)
              ]
 
+-- helpmeQ ---------------------------------------------------------------------
+
+-- | ExpQ variant of `helpme`
+
 helpmeQ :: ArgArity -> String -> ExpQ
 helpmeQ arity arg_type =
   [| mkOpt "" [ "help" ] (helpme def { arg_arity = arity, arg_type = arg_type })
@@ -124,8 +128,124 @@ helpmeQ arity arg_type =
      "" "" -- opt typename; dflt
    |]
 
-mkopts :: String                           -- ^ name of the variable to create,
-                                           --   e.g., "optCfg"
+-- mkopts ----------------------------------------------------------------------
+
+{- | primary entry point for options generation
+
+     @
+       $( mkopts "getoptsx" (ArgSome 1 3) "filename"
+                 [ "s|string\>str::String#string summary"
+                 , "i|int|Int::Int\<4\>#integer summary\ndefault 4"
+                 , "C\>incr::incr#increment summary\nincrement int longhelp"
+                 , "decr|D::decr\<6\>#decrement summary\ndecrement int longhelp"
+                 , "handle::filero\</etc/motd\>#read-only file\nauto-opened"
+                 ]
+        )
+
+       main :: IO ()
+       main = do
+         (args, opts) <- getoptsx arity "filename"
+                                  (return . (readType \"Int\" :: String -> Int))
+         forM_ [ "ARGS: " ++ show args, "OPTS: "  ++ show opts ] putStrLn
+         putStrLn $ "s: "    ++ show (opts ^. s)
+         putStrLn $ "i: "    ++ show (opts ^. i)
+         putStrLn $ "incr: " ++ show (opts ^. incr)
+         putStrLn $ "decr: " ++ show (opts ^. decr)
+     @
+
+     Call this within a splice, providing the name of a fn to generate, along
+     with defining parameters.  That function will be generated, returning
+     parsed arguments and options, having eagerly/strictly parsed them (so that
+     any relevant errors are found at this time).
+
+     The option strings are compiled.  The syntax is:
+
+     >  {optnames}(>{lensname})?::{type}(<{default})>?#{shorthelp}(\n{longhelp})?
+
+     * optnames
+
+       A list of option names, separated by @|@, to be used for invocation.
+
+         * Each name may be single character, being invoked with @-c@, or
+           multi-character, being invoked with @--chars@.
+         * Each name may consist of some combination of letters, numbers, and
+           hyphens (@-@).  The first (or only) character must alphanumeric.
+         * Each name must be unique across the set of options.
+         * Option names are case-sensitive; @c@ and @C@ are distinct option
+           names.
+
+       The option name list may not be empty.
+
+   * lensname
+
+       The name of the lens to target with this option.  The same naming rules
+       apply as for optnames, with the following exceptions:
+
+         * hyphens (@-@) are not permitted; underscores (@_@) are,
+         * the name may begin with an underscore or an alphabetic character
+           (note not a number).
+
+       If a lensname is not given, then the first of the given option names is
+       used.
+
+         * any hyphens are replaced with underscores,
+         * an option name with a leading digit is preceded in the lensname with
+           an underscore.
+
+       Each lensname must be unique both within the option set and be a unique
+       function name within the compilation context.
+
+   * type
+
+       The value type of the option.  This is the type of the value that is
+       expected to be returned by the lens; internally, a different type
+       (typically using an encapsulating monad, e.g., Maybe t).
+
+       The available types are:
+
+         * Standard haskell types, as an alphanumeric string.  Compound types
+           (with spaces in the name) are not currently supported.  The following
+           types have a natural default:
+
+             * String - ""
+             * Int    - 0
+
+           For those that don't have a natural default, if no default is
+           supplied in the option specification and the user doesn't invoke the
+           given option; then an error will be generated at option parsing time
+           - thus you effectively have mandatory options.
+
+         * incr
+
+           Takes no value on the cmdline; each invocation increases the option
+           value.  Starting value is 0, or the default value if specified.  User
+           sees an Int.
+
+         * decr
+
+           Takes no value on the cmdline; each invocation increases the option
+           value.  Starting value is 0, or the default value if specified.  User
+           sees an Int.
+
+         * filero
+
+           Takes the name of a file as cmdline argument; opens the file RO, and
+           returns a handle to the file.  Generates an error at options-parsing
+           runtime if no user value is supplied, and there is no default.
+
+         * ?t or Maybe t
+
+           This is like t, except that the value is wrapped in a Maybe; if no
+           value is provided on the command line is provided, you get Nothing.
+           DOCUMENT WHAT HAPPENS WHEN A DEFAULT VALUE IS PROVIDED.
+
+         * [t]
+
+
+-}
+
+mkopts :: String                           -- ^ name of the getopts fn to
+                                           --   create, e.g., "optCfg"
        -> ArgArity                         -- ^ arity of arguments
        -> String                           -- ^ arg type (for help text)
        -- we use just a big string to allow for optionality of bits
@@ -136,25 +256,63 @@ mkopts :: String                           -- ^ name of the variable to create,
        -> DecsQ
 
 mkopts getoptName arity arg_type optcfgs = do
-  -- mkopts "getoptsx" (ArgSome 1 3) "filename" ["s|string::String#summary"]
-  -- generates something like
-  --
-  -- data Getoptsx__ = Getoptsx__ { _s__ :: Maybe String } deriving Show
-  -- instance Default Getoptsx__ where def = Getoptsx__ Nothing
-  -- s___ a b = fmap asn (a $ (_s___ b)) where asn x = b { _s___ = x }
-  -- data Getoptsx = Getoptsx { _s :: String }
-  -- s a b = fmap asn (a $ (_s b)) where asn x = b { _s = x }
-  -- getoptsx_ = [ mkOpt "s" ["string"] setval parseAs "String" s___
-  --                     "string summary" "" "Maybe String" "\"\""
-  --             , mkOpt "" ["help"] helpme (def { arg_arity = ArgSome 1 3
-  --                                             , arg_type  = "filename" })
-  --                     "this help" "Provide help text..." "" ""
-  --             ]
-  -- getoptsx = (getopts getoptsx_) ... (t2apply getoptsx_effect)
-  -- getoptsx_effect g = do
-  --       string_x <- return (((fromMaybe "") . (view s___)) g
-  --       (return $ (Getoptsx string_x))
-  --   :: Getoptsx__ -> IO Getoptsx
+  {- mkopts "getoptsx" (ArgSome 1 3) "filename"
+           [ "s|string::String#summary"
+           , "incr|C::incr#increment summary\nincrement int longhelp"
+           , "handle::filero</etc/motd>#read-only file\nauto-opened"
+           ]
+
+     generates something like
+
+     data Getoptsx__ = Getoptsx__ { _s__      :: Maybe String
+                                  , _incr__   :: Int
+                                  , _handle__ :: Maybe FilePath
+                                  }
+       deriving Show
+     instance Default Getoptsx__ where def = Getoptsx__ Nothing 0 Nothing
+
+     s___      a b = fmap asn (a $ (_s___ b))
+       where asn x = b { _s___      = x }
+     incr___   a b = fmap asn (a $ (_incr___ b))
+       where asn x = b {_incr___    = x }
+     handle___ a b = fmap asn (a $ ( _handle___ b))
+       where asn x = b { _handle___ = x }
+
+     data Getoptsx = Getoptsx { _s :: String
+                              , _incr :: Int
+                              , _handle :: Handle
+                              }
+       deriving Show
+
+     s      a b = fmap asn (a $ (_s b))      where asn x = b { _s      = x }
+     incr   a b = fmap asn (a $ (_incr b))   where asn x = b { _incr   = x }
+     handle a b = fmap asn (a $ (_handle b)) where asn x = b { _handle = x }
+
+     getoptsx_ = [ mkOpt "s" ["string"] (setval parseAs "String" s___)
+                         "string summary" "" "Maybe String" "\"\""
+                 , mkOpt "C" ["incr"]   (setvalc incr___)
+                         "increment summary" "increment int longhelp" "Int" "0"
+
+                 , mkOpt ""  ["handle"] (setval return handle___)
+                         "read-only file" "auto-opened"
+                         "Maybe FilePath" "GHC.Base.id \"/etc/motd\"",
+
+                 , mkOpt "" ["help"] helpme (def { arg_arity = ArgSome 1 3
+                                                 , arg_type  = "filename" })
+                         "this help" "Provide help text..." "" ""
+                 ]
+
+      getoptsx_effect =
+       \g -> do string_x    <- return (((fromMaybe "") . (view s___)) g);
+                incr_x   <- return (view incr___ g);
+                handle_x <- openFileRO (((fromMaybe "/etc/motd")
+                                             . (view handle___)) g);
+                (return $ (Getoptsx string_x incr_x handle_x))
+       :: Getoptsx__ -> IO Getoptsx
+
+    getoptsx = (getopts getoptsx_) ... (t2apply getoptsx_effect)
+
+  -}
 
   let typename   = ucfirst getoptName -- name of type holding ultimate values
                                       -- to pass back to user (Getoptsx above)
@@ -167,17 +325,15 @@ mkopts getoptName arity arg_type optcfgs = do
       cfgName  = mkName (getoptName ++ "_")
       optdescs = fmap read optcfgs
       opts     = fmap mkopt optdescs ++ [ helpmeQ arity arg_type ]
+
       -- assign a list of options (returned by mkOpt) to a name
       -- (getoptsx_ = [ mkOpt ... ] above)
       asgn_mkopts :: [Exp] -> DecsQ
       asgn_mkopts o  = return [assignN cfgName (ListE o)]
 
-      -- create a record to hold parsed but not effected values; that is, in the
-      -- case of non-IO values, the end result; but in the case of IO values, a
-      -- non-IO pre-representation.  This is created in one pass; and when it
-      -- comes to creating the record returned to the user, defaults are
-      -- inserted as necessary and IO performed to produce the user-visible opts
-      -- record
+      -- create a record to hold PCLVs.  This is created in one pass; and when
+      -- it comes to creating the OVs record, defaults are inserted as necessary
+      -- and IO is performed to produce the user-visible opts record
       -- (data Getoptsx__ = Getoptsx__ { ... } above)
       precord :: DecsQ
       precord = mkLensedRecordDef typename__
@@ -185,7 +341,7 @@ mkopts getoptName arity arg_type optcfgs = do
                                   [''Show]
 
 
-      -- create a record to hold final values to pass back to the user; 
+      -- create a record to hold final values to pass back to the user;
       -- (data Getoptsx = Getoptsx { ... } above)
       record :: DecsQ
       record = mkLensedRecord typename
@@ -200,17 +356,29 @@ mkopts getoptName arity arg_type optcfgs = do
       -- (getoptsx_effect above)
       effectName = getoptName ++ "_effect"
 
+      -- given some var g which is of type GetoptName__, return a stmt of the
+      -- form b <- enactor (dfGetter g)
+      -- (e.g., string_x <- return (((fromMaybe "") . (view s___)) g above)
       effectBind :: Name -> OptDesc -> Q (Name, Stmt)
       effectBind g o = do
         b   <- newName $ name o
         dfg <- dfGetter o
         return (b, BindS (VarP b) (AppE (enactor o) (AppE dfg (VarE g))))
 
-      -- effector g = do
-      --   a <- updater (g ^. a___)
-      --   b <- updater (g ^. b___)
+      -- effector = \g -> do
+      --   a <- enactor (dfGetter a___)
+      --   b <- enactor (dfGetter b___)
       --   ...
-      --   return $ GetoptName__ a b c
+      --   return $ GetoptName a b
+
+      -- (\g -> do
+      --   string_x <- return (((fromMaybe "") . (view s___)) g);
+      --   incr_x   <- return (view incr___ g);
+      --   handle_x <- openFileRO (((fromMaybe "/etc/motd") 
+      --                            . (view handle___)) g);
+      --   (return $ (Getoptsx string_x incr_x handle_x))
+      -- above)
+
       effector = do
         let o = head optdescs
         g <- newName "g"
@@ -225,13 +393,9 @@ mkopts getoptName arity arg_type optcfgs = do
                                          )
                                                                                                                   ]))
 
-      -- getoptName = Fluffy.Console.Getopt.getopts getoptName_
-      -- getoptName_effect = effector :: GetoptName__ -> IO GetoptName
-
       assign_getopt = do
         a <- newName "a"
-        -- (Show a) => ArgArity -> String -> (String -> IO a)
-        --          -> IO ([a], typename)
+        -- ArgArity -> String -> (String -> IO a) -> IO ([a], typename)
         let typeSig = tsArrows [ ConT ''ArgArity
                                , ConT ''String
                                , tsArrows [ ConT ''String
@@ -241,27 +405,35 @@ mkopts getoptName arity arg_type optcfgs = do
                                               , ConT $ mkName typename ])
                                ]
 
+            -- (getopts getoptsx_ above)
             lhs = AppE (VarE 'getopts) (VarE cfgName)
+            -- (t2apply getoptsx_effect above)
             rhs = AppE (VarE 't2apply) (VarE $ mkName effectName)
 
-        effector >>= \c ->
-          return [ -- assign getoptName lhs --  (AppE (VarE 'getopts) (VarE cfgName))
-                   -- getoptsx = (getopts getoptsx_) ... (t2apply getoptsx_effect)
-                   assign getoptName (InfixE (Just lhs) (VarE '(...)) (Just rhs))
-  -- getoptsx_effect g = do
-  --       string_x <- return (((fromMaybe "") . (view s___)) g
-  --       (return $ (Getoptsx string_x))
-  --   :: Getoptsx__ -> IO Getoptsx
-                 , assign effectName
-                     (SigE c (tsArrows [ ConT $ mkName typename__
-                                       , AppT (ConT ''IO)
-                                              (ConT $ mkName typename)
-                                       ]))
+        effector >>= \eff ->
+          return [ -- (getoptsx_effect = \g -> do { ... } 
+                   --     :: Getoptsx__ :: IO Getoptsx
+                   --  above)
+                   assign effectName
+                     (SigE eff (tsArrows [ ConT $ mkName typename__
+                                         , AppT (ConT ''IO)
+                                                (ConT $ mkName typename)
+                                         ]))
+
+                   -- (getoptsx = (getopts getoptsx_) ... 
+                   --             (t2apply getoptsx_effect)
+                   --  above)
+                 , assign getoptName (InfixE (Just lhs) (VarE '(...)) (Just rhs))
                  ]
 
-  concatM [ precord, record
-          -- assign a list of mkOpt calls to the chosen var
-          , asgn_mkopts =<< sequence opts
+  concatM [ precord -- (data Getoptsx__ = Getoptsx__ { ... } above)
+          , record  -- (data Getoptsx = Getoptsx { ... } above)
+            -- assign a list of mkOpt calls to the chosen var
+          , asgn_mkopts =<< sequence opts -- (getoptsx_ = [ mkOpt ... ] above)
+            -- (getoptsx_effect = \g -> do { ... } 
+            --     :: Getoptsx__ :: IO Getoptsx
+            --  getoptsx = (getopts getoptsx_) ... (t2apply getoptsx_effect)
+            --  above)
           , assign_getopt
           ]
 
@@ -274,6 +446,5 @@ t2apply effect ab = do
   (a,b) <- ab
   b'    <- effect b
   return (a,b')
-
 
 -- that's all, folks! ----------------------------------------------------------

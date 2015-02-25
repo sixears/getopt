@@ -1,5 +1,3 @@
-#!/usr/local/bin/runghc -i/home/martyn/bin/hlib
-
 {-# LANGUAGE TemplateHaskell #-}
 
 -- base --------------------------------

@@ -16,7 +16,7 @@ module Console.Getopt.OptDesc
   , names, name, lensname, summary, descn
   , dflt, dfGetter, dfltTxt, pclvField, pclvTypename
   , optSetVal, precordDefFields, recordFields
-  , strt, strtval, typename
+  , strt, typename
   , enactor
 
     -- exported for testing only
@@ -54,6 +54,8 @@ import Console.Getopt.OptDescT      ( OptDesc, descn, dflt, lensname
 
 -- pclvTypename ------------------------
 
+-- | the pclvTypename for this option
+
 pclvTypename :: OptDesc -> String
 pclvTypename = OTypes.pclvTypename . view typename
 
@@ -69,6 +71,7 @@ setter = OTypes.setter . view typename
 
 -- enactor -----------------------------
 
+-- | find the enactor for this option
 enactor :: OptDesc -> Exp
 enactor = OTypes.enactor . view typename
 
@@ -135,11 +138,6 @@ dfGetter o =
       then (o ^. dflt) >>= \d -> return (getter d)
       else return (viewE iF)
 
--- strtval ---------------------------------------------------------------------
-
-strtval :: OptDesc -> ExpQ
-strtval o = o ^. strt
-
 -- recordFields ----------------------------------------------------------------
 
 {- | the fields passed to mkLensedRecordDef for this option; that is, the
@@ -157,4 +155,4 @@ recordFields o = ('_' : o ^. lensname, optionTypename o)
    they are later lensed.
  -}
 precordDefFields :: OptDesc -> (String, String, ExpQ)
-precordDefFields o = ('_' : o ^. lensname ++ "___", pclvTypename o, strtval o)
+precordDefFields o = ('_' : o ^. lensname ++ "___", pclvTypename o, o ^. strt)

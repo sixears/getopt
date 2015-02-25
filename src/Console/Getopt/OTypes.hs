@@ -228,6 +228,8 @@ pclvTypename = pclvTypename_ . oTypes
 
 -- pclvType --------------------------------------------------------------------
 
+-- | type to use within the PCLV record for a requested option type
+--   (so Int becomes Maybe Int (to allow for default != start) for example)
 pclvType :: String -> Type
 pclvType = ConT . mkName . pclvTypename
 
@@ -240,6 +242,8 @@ optionTypename = optionTypename_ . oTypes
 
 -- optionType ------------------------------------------------------------------
 
+-- | type to represent to the getopt developer for a requested option type (so
+--   incr becomes Int, for example)
 optionType :: String -> Type
 optionType = ConT . mkName . optionTypename
 

@@ -103,16 +103,8 @@ check_invocation exec name iargs exp_exit exp_args exp_opt exp_items exp_err = d
 main :: IO ()
 main = do
   getWorkingDirectory >>= diag . ("cwd: " ++)
-  let getopt_th    = -- joinPath [ hlib, "Fluffy", "Console", "T", "getopt-th" ]
-                     joinPath [ "dist", "build", "getopt-th-hs", "getopt-th-hs" ]
+  let getopt_th    = joinPath [ "dist", "build", "getopt-th-hs", "getopt-th-hs" ]
       check        = check_invocation getopt_th
-
-  -- diag "compiling getopt-th.hs"
-  -- (c_exit, c_out, c_err) <- readProcessWithExitCode hc [ getopt_th_hs ] ""
-  -- when (ExitSuccess /= c_exit) $ do
-    -- forM_ (lines c_out) (explain "OUT> ")
-    -- forM_ (lines c_err) (explain "ERR> ")
-    -- exitFailure
 
   let opt   = Getoptsx { _s = "", _i = 4, _incr = 0, _decr = 6
                        , _handle = HandleR "/etc/motd" }
@@ -120,9 +112,7 @@ main = do
                            , ("incr", "0"), ("decr", "6") ]
 
   (fmap concat . sequence)
-    [ -- return $ [ is c_exit ExitSuccess "compilation success" ]
---    , 
-      check "error invocation"  []    2 []  Nothing    Map.empty
+    [ check "error invocation"  []    2 []  Nothing    Map.empty
             [ "! takes between 1 & 3 arguments (inclusive) (got none)" ]
 
     , check "simple invocation" ["7"] 0 [7 :: Int] (Just opt) items []

@@ -8,13 +8,11 @@ License     : BSD
 Maintainer  : haskell@sixears.com
 
 option descriptor access fns
- 
+
 -}
 
 module Console.Getopt.OptDescParse
-  ( readsPrecOptDesc
-    -- exported for testing only
-  , _check )
+  ( _check )
 where
 
 -- base --------------------------------
@@ -132,7 +130,7 @@ typeDefaultE t str = fromMaybe (errf "default" t str) (typeDefault t)
 
 -- | like startVal, but for default
 defaultVal :: Maybe String -> String -> String -> ExpQ
-defaultVal s t str = maybe (typeDefaultE t str) 
+defaultVal s t str = maybe (typeDefaultE t str)
                            (return . AppE (parser t) .LitE . StringL) s
 
 -- setTypeDfStMg -----------------------
@@ -140,10 +138,14 @@ defaultVal s t str = maybe (typeDefaultE t str)
 -- | set the type, default, start value, munge of an OptDesc per values parsed
 --   from an optstring
 setTypeDfStMg :: String         -- ^ user string (for error messages)
-              -> (String,       -- ^ user-requested type string
-                  Maybe String, -- ^ default value string, if any
-                  Maybe String, -- ^ start value string, if any
-                  Maybe String) -- ^ munge string, if any
+              -> (String,
+                  Maybe String,
+                  Maybe String,
+                  Maybe String) {- ^ user-requested type string;
+                                     default value string, if any;
+                                     start value string, if any;
+                                     munge string, if any
+                                 -}
               -> OptDesc -> OptDesc
         -- tt is base option type; df is Maybe default; st is maybe start;
         -- mg is Maybe munger
@@ -154,13 +156,13 @@ setTypeDfStMg str (type_str, mb_default_str, mb_start_str, mb_munge_str) =
         -- neither a start nor a default; see if there's an uber-default
         -- for the type; if not, error
         (if startIsDefault type_str
-         then -- start == default, so it's an error for start to be independently 
+         then -- start == default, so it's an error for start to be independently
               -- defined by he user
-              maybe (set strt df_val) 
-                    (error $ printf "may not set start val with type %s (%s)" 
-                                    type_str str) 
+              maybe (set strt df_val)
+                    (error $ printf "may not set start val with type %s (%s)"
+                                    type_str str)
                    mb_start_str
-         else 
+         else
            set strt (startVal mb_start_str type_str str)
         )
       . set dflt df_val
@@ -194,6 +196,7 @@ readsPrecOptDesc _ s =
       identifiers =  (:) <$> identifier <*> many (sym '|' *> identifier)
 
       idnames :: [String] -> OptDesc -> OptDesc
+      -- set lensname to first long option name by default
       idnames ss = set lensname (head ss) . set names ss
 
       pIdNames :: RE Char (OptDesc -> OptDesc)
@@ -297,8 +300,7 @@ _check checkstr s =
    in -- [| \a -> if op a val -- if a > 0 -- op a val
       --          then return a
       --          else fail $ printf "option %s val %s failed check: %s %s"
-      --                             s (show a) op_t (show val)
-      -- |]
+      --                             s (show a) op_t (show val) |]
       do a <- a'
          let f = -- Exp ( :: Bool )
                  if null val_t
