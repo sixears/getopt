@@ -93,7 +93,8 @@ module Console.Getopt
          the lens package makes it all much simpler.
 
          @
-         type Lens' s a = &#8704; (f :: * -> *) . Functor f => (a -> f a) -> s -> f s
+         type Lens' s a = 
+           &#8704; (f :: * -> *) . Functor f => (a -> f a) -> s -> f s
          @
 
          A default instance of your Opts class is required so that
@@ -156,15 +157,10 @@ module Console.Getopt
   , setvals', setvalt, setvalf, setval', setvalAList, setvalAList'
 
   -- * useful extras
-  , progName
+  , NFHandle( NFHandle ), progName, unhandle
   )
 where
 
--- deal with orphan instances  Getopt.hs:1233
---   src/Console/Getopt.hs:1233:10: Warning:
---       Orphan instance: instance [overlap ok] NFData Handle
---   src/Console/Getopt/OptDescParse.hs:182:10: Warning:
---       Orphan instance: instance Read OptDesc
 -- clean build from scratch
 -- getoptsx_effect should take an argument, not use a lambda
 -- getoptsx_effect should pre-declare its type sig
@@ -1235,7 +1231,20 @@ parse_options state =
 ignoreFirst :: (a -> b) -> z -> a -> b
 ignoreFirst f _ = f
 
-instance NFData Handle where
+-- NFHandle --------------------------------------------------------------------
+
+-- | Handle that is an instance of NFData.  We use a newtype here to avoid an
+--   orphaned type.
+-- instance NFData Handle where
+newtype NFHandle = NFHandle Handle
+  deriving Eq
+instance Show NFHandle where
+  show = show . unhandle
+instance NFData NFHandle where
+
+-- | extract handle
+unhandle :: NFHandle -> Handle
+unhandle (NFHandle h) = h
 
 -- ... -------------------------------------------------------------------------
 

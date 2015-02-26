@@ -6,8 +6,9 @@
 -- base --------------------------------
 
 import Control.Exception  ( SomeException, try )
+import Control.Monad      ( liftM )
 import Data.List          ( intercalate )
-import System.IO          ( Handle, IOMode( ReadMode), openFile )
+import System.IO          ( IOMode( ReadMode), openFile )
 
 -- data-default ------------------------
 
@@ -29,7 +30,7 @@ import Fluffy.Language.TH.Type  ( readType )
 
 -- this package --------------------------------------------
 
-import Console.Getopt  ( Option
+import Console.Getopt  ( NFHandle( NFHandle ), Option
                        , getOptions, helpme', mkOpt, mkOptsB
                        , setvalOW, setvalm_, setval, setvalc, setvalc'
                        , setvals, setvals', setvalt, setvalf
@@ -39,14 +40,14 @@ import Console.Getopt  ( Option
 
 data Opts = Opts { _foo    :: Maybe String
                  , _bob    :: Int
-                 , _bar    :: [Handle]
+                 , _bar    :: [NFHandle]
                  , _sett   :: Bool
                  , _quux   :: Bool
                  , _tett   :: Maybe Bool
                  , _uett   :: Bool
                  , _corn   :: String
                  , _list   :: [Int]
-                 , _alist  :: [(Int, Handle)]
+                 , _alist  :: [(Int, NFHandle)]
                  , _obool  :: Maybe Bool
                  , _obool2 :: Maybe Bool
                  }
@@ -65,7 +66,7 @@ optCfg = [ mkOpt "fF" [ "foo", "fop", "fob"  ] (setval return foo)
                              ++ " radio voice of James Bond" )
                  "" ""
          , mkOpt "a"  [ "bar"  ]
-                 (setvals (`openFile` ReadMode) bar)
+                 (setvals (\fn -> fmap NFHandle $ openFile fn ReadMode) bar)
                  "barity"
                   (    "How many baas in a black sheep, that's all "
                     ++ "that you need to ask yourself" )
@@ -88,7 +89,7 @@ optCfg = [ mkOpt "fF" [ "foo", "fop", "fob"  ] (setval return foo)
                  "clist" "a comma-separated list of integers" "" ""
          , mkOpt "A" [ "alist" ] (setvalAList' "=>"
                                               (const . return . readType "Int")
-                                              (\ x _ _ -> openFile x ReadMode)
+                                              (\ x _ _ -> fmap NFHandle $ openFile x ReadMode)
                                               alist )
                  "alist" "an alist of int to handle" "" ""
          , mkOpt "m" [ "optval" ] (setvalm_ obool)
@@ -109,7 +110,7 @@ optCfg2 = [ mkOpt "fF" [ "foo", "fop", "fob" ] (setval return foo)
                   (setvalOW (return . readType "Int") bob)
                   "bobness" "Bob Holness" "" ""
           , mkOpt ""  []
-                  (setvalOW (\x -> sequence [openFile x ReadMode]) bar)
+                  (setvalOW (\x -> sequence [fmap NFHandle $ openFile x ReadMode]) bar)
                   "barity" "how many?" "" ""
           ]
 
