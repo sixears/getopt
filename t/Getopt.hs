@@ -6,7 +6,6 @@
 -- base --------------------------------
 
 import Control.Exception  ( SomeException, try )
-import Control.Monad      ( liftM )
 import Data.List          ( intercalate )
 import System.IO          ( IOMode( ReadMode), openFile )
 
