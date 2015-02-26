@@ -1,0 +1,12 @@
+#!/bin/bash
+
+set -e
+
+dir="$(dirname "$0")"
+cabal=/usr/local/bin/cabal
+rm -fr "$dir"/dist
+$cabal build 2>&1 | tee "$dir"/build.log
+$cabal bench 2>&1 | tee "$dir"/bench.log
+$cabal test  2>&1 | tee "$dir"/test.log
+
+grep -v ^Loading {build,bench,test}.log
