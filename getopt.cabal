@@ -70,7 +70,7 @@ library
                        regex-applicative ==0.3.*,
                        template-haskell  ==2.9.*,
 
-                       fluffy ==0.1.*,
+                       fluffy >=0.1.1.0 && < 0.2.0.0,
                        text-block ==0.1.*
 
   -- Directories containing source files.

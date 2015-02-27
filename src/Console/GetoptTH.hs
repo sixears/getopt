@@ -46,7 +46,10 @@ import Control.Lens  ( (^.) )
 
 -- template-haskell --------------------
 
-import Language.Haskell.TH         ( Exp( AppE, ConE, DoE, InfixE
+import Language.Haskell.TH         ( Body( NormalB )
+                                   , Clause( Clause )
+                                   , Dec( FunD, SigD )
+                                   , Exp( AppE, ConE, DoE, InfixE
                                         , LamE, ListE, SigE, VarE )
                                    , ExpQ
                                    , Name
@@ -65,7 +68,7 @@ import Language.Haskell.TH.Syntax  ( lift )
 
 import Fluffy.Data.List                ( splitOn )
 import Fluffy.Data.String              ( ucfirst )
-import Fluffy.Language.TH              ( assign, assignN, intE, listOfN
+import Fluffy.Language.TH              ( assign, assignN, infix2E, intE, listOfN
                                        , mAppE, mAppEQ
                                        , nameE, nameEQ, stringEQ, tsArrows
                                        , tupleL
@@ -127,6 +130,51 @@ helpmeQ arity arg_type =
              ])
      "" "" -- opt typename; dflt
    |]
+
+-- effector --------------------------------------------------------------------
+
+{- | build a (do) stmt that takes a GetoptName__ record, for each field in turn
+     extracts the PCLV, passes through the relevant defaulter, to the relevant
+     enactor; and ultimately builds a GetoptName record from the resultant values
+
+     type of the resulting expression is GetoptName__ -> IO GetoptName
+-}
+
+-- effector g = do
+--   a <- enactor (dfGetter a___)
+--   b <- enactor (dfGetter b___)
+--   ...
+--   return $ GetoptName a b
+
+-- (do
+--   string_x <- return (((fromMaybe "") . (view s___)) g);
+--   incr_x   <- return (view incr___ g);
+--   handle_x <- openFileRO (((fromMaybe "/etc/motd")
+--                            . (view handle___)) g);
+--   (return $ (Getoptsx string_x incr_x handle_x))
+--  below)
+
+effector :: Name                                -- ^ Qname of the fn param
+         -> [OptDesc]                           -- ^ option field list
+         -> (Name -> OptDesc -> Q (Name, Stmt)) -- ^ optdesc enactor binder
+         -> Name                                -- ^ name of the type 
+                                                --   constructor to build to
+         -> ExpQ
+effector g optdescs effectBind typenameN =  do
+  let o        = head optdescs
+  a           <- newName (name o)
+  dfg         <- dfGetter o
+  (bs, binds) <- mapAndUnzipM (effectBind g) optdescs
+  let ctor     = mAppE ((ConE $ typenameN) : fmap VarE bs)
+  return (DoE ( binds ++ [ NoBindS (infix2E (VarE 'return) (VarE '($)) ctor) ]))
+
+-- | apply IO to a type, in Q world
+appTIO :: Type -> Type
+appTIO = AppT (ConT ''IO)
+
+mkSimpleFun :: Name -> [Name] -> Exp -> Dec
+mkSimpleFun nam params body = 
+  FunD nam [Clause (fmap VarP params) (NormalB body) []]
 
 -- mkopts ----------------------------------------------------------------------
 
@@ -243,7 +291,7 @@ helpmeQ arity arg_type =
 
    * default
 
-     The value to return to the caller if the option is never invoked by the 
+     The value to return to the caller if the option is never invoked by the
      user.  The string provided is given to read.
 
    * shorthelp
@@ -313,13 +361,13 @@ mkopts getoptName arity arg_type optcfgs = do
                          "this help" "Provide help text..." "" ""
                  ]
 
-      getoptsx_effect =
-       \g -> do string_x    <- return (((fromMaybe "") . (view s___)) g);
-                incr_x   <- return (view incr___ g);
-                handle_x <- openFileRO (((fromMaybe "/etc/motd")
-                                             . (view handle___)) g);
-                (return $ (Getoptsx string_x incr_x handle_x))
-       :: Getoptsx__ -> IO Getoptsx
+      getoptsx_effect :: Getoptsx__ -> IO Getoptsx
+      getoptsx_effect g = do
+        string_x    <- return (((fromMaybe "") . (view s___)) g);
+        incr_x   <- return (view incr___ g);
+        handle_x <- openFileRO (((fromMaybe "/etc/motd")
+                                     . (view handle___)) g);
+        (return $ (Getoptsx string_x incr_x handle_x))
 
     getoptsx = (getopts getoptsx_) ... (t2apply getoptsx_effect)
 
@@ -327,9 +375,13 @@ mkopts getoptName arity arg_type optcfgs = do
 
   let typename   = ucfirst getoptName -- name of type holding ultimate values
                                       -- to pass back to user (Getoptsx above)
+      typenameN  = mkName typename
+      typenameT  = ConT typenameN
       typename__ = typename ++ "__"   -- name of type record holding pre-IO
                                       -- values that are then 'effected' to
                                       -- ultimate values (Getoptsx__ above)
+      typename__N = mkName typename__
+      typename__T = ConT typename__N
       -- the explicit "_" is weird, but without it I get duplicate definition
       -- error for getoptName
       -- name of a variable to hold the list of calls to mkOpt (getoptsx_ above)
@@ -359,7 +411,7 @@ mkopts getoptName arity arg_type optcfgs = do
                                  (fmap recordFields optdescs)
                                  [''Show]
 
-      -- the effector is a function of type GetoptName__ -> IO GetoptName;
+      -- the effector is a function of type GetoptNampe__ -> IO GetoptName;
       -- which is to effect values that have been /parsed/ (e.g., in the
       -- case of integers, checking /^\d+$/ (well, something more complex, but
       -- you get the idea) to values that have been /effected/ and particularly
@@ -376,62 +428,31 @@ mkopts getoptName arity arg_type optcfgs = do
         dfg <- dfGetter o
         return (b, BindS (VarP b) (AppE (enactor o) (AppE dfg (VarE g))))
 
-      -- effector = \g -> do
-      --   a <- enactor (dfGetter a___)
-      --   b <- enactor (dfGetter b___)
-      --   ...
-      --   return $ GetoptName a b
-
-      -- (\g -> do
-      --   string_x <- return (((fromMaybe "") . (view s___)) g);
-      --   incr_x   <- return (view incr___ g);
-      --   handle_x <- openFileRO (((fromMaybe "/etc/motd") 
-      --                            . (view handle___)) g);
-      --   (return $ (Getoptsx string_x incr_x handle_x))
-      -- above)
-
-      effector = do
-        let o = head optdescs
-        g <- newName "g"
-        a <- newName (name o)
-        dfg <- dfGetter o
-        (bs, binds) <- mapAndUnzipM (effectBind g) optdescs
-        return $
-          LamE [ VarP g ] (DoE ( binds ++
-                                [ NoBindS (InfixE (Just (VarE 'return))
-                                                 (VarE '($))
-                                                 (Just (mAppE ((ConE $ mkName typename) : fmap VarE bs)))
-                                         )
-                                                                                                                  ]))
-
       assign_getopt = do
         a <- newName "a"
         -- ArgArity -> String -> (String -> IO a) -> IO ([a], typename)
         let typeSig = tsArrows [ ConT ''ArgArity
                                , ConT ''String
-                               , tsArrows [ ConT ''String
-                                          , AppT (ConT ''IO) (VarT a) ]
-                               , AppT (ConT ''IO)
-                                      (tupleL [ listOfN a
-                                              , ConT $ mkName typename ])
+                               , tsArrows [ ConT ''String , appTIO(VarT a) ]
+                               , appTIO (tupleL [ listOfN a, typenameT ])
                                ]
 
             -- (getopts getoptsx_ above)
             lhs = AppE (VarE 'getopts) (VarE cfgName)
             -- (t2apply getoptsx_effect above)
             rhs = AppE (VarE 't2apply) (VarE $ mkName effectName)
+            effectorSig = tsArrows [ typename__T
+                                   , appTIO typenameT ]
 
-        effector >>= \eff ->
-          return [ -- (getoptsx_effect = \g -> do { ... } 
-                   --     :: Getoptsx__ :: IO Getoptsx
+        g <- newName "g"
+        effector g optdescs effectBind typenameN >>= \eff ->
+          return [ -- (getoptsx_effect :: Getoptsx__ -> IO Getoptsx
+                   --  getoptsx_effect g = do { ... }
                    --  above)
-                   assign effectName
-                     (SigE eff (tsArrows [ ConT $ mkName typename__
-                                         , AppT (ConT ''IO)
-                                                (ConT $ mkName typename)
-                                         ]))
+                   SigD (mkName effectName) effectorSig
+                 , FunD (mkName effectName) [Clause [VarP g] (NormalB eff) [] ]
 
-                   -- (getoptsx = (getopts getoptsx_) ... 
+                   -- (getoptsx = (getopts getoptsx_) ...
                    --             (t2apply getoptsx_effect)
                    --  above)
                  , assign getoptName (InfixE (Just lhs) (VarE '(...)) (Just rhs))
@@ -441,7 +462,7 @@ mkopts getoptName arity arg_type optcfgs = do
           , record  -- (data Getoptsx = Getoptsx { ... } above)
             -- assign a list of mkOpt calls to the chosen var
           , asgn_mkopts =<< sequence opts -- (getoptsx_ = [ mkOpt ... ] above)
-            -- (getoptsx_effect = \g -> do { ... } 
+            -- (getoptsx_effect = \g -> do { ... }
             --     :: Getoptsx__ :: IO Getoptsx
             --  getoptsx = (getopts getoptsx_) ... (t2apply getoptsx_effect)
             --  above)
