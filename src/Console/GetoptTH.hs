@@ -172,9 +172,10 @@ effector g optdescs effectBind typenameN =  do
 appTIO :: Type -> Type
 appTIO = AppT (ConT ''IO)
 
-mkSimpleFun :: Name -> [Name] -> Exp -> Dec
-mkSimpleFun nam params body = 
-  FunD nam [Clause (fmap VarP params) (NormalB body) []]
+mkSimpleFun :: Type -> Name -> [Name] -> Exp -> [Dec]
+mkSimpleFun sig nam params body = 
+  [ SigD nam sig
+  , FunD nam [Clause (fmap VarP params) (NormalB body) []] ]
 
 -- mkopts ----------------------------------------------------------------------
 
@@ -446,16 +447,19 @@ mkopts getoptName arity arg_type optcfgs = do
 
         g <- newName "g"
         effector g optdescs effectBind typenameN >>= \eff ->
-          return [ -- (getoptsx_effect :: Getoptsx__ -> IO Getoptsx
+          return -- [ -- (getoptsx_effect :: Getoptsx__ -> IO Getoptsx
                    --  getoptsx_effect g = do { ... }
                    --  above)
-                   SigD (mkName effectName) effectorSig
-                 , FunD (mkName effectName) [Clause [VarP g] (NormalB eff) [] ]
+                   mkSimpleFun effectorSig (mkName effectName) [g] eff
+--                   SigD (mkName effectName) effectorSig
+--                 , FunD (mkName effectName) [Clause [VarP g] (NormalB eff) [] ]
 
                    -- (getoptsx = (getopts getoptsx_) ...
                    --             (t2apply getoptsx_effect)
                    --  above)
-                 , assign getoptName (InfixE (Just lhs) (VarE '(...)) (Just rhs))
+                 -- , 
+                 ++ [ 
+                   assign getoptName (InfixE (Just lhs) (VarE '(...)) (Just rhs))
                  ]
 
   concatM [ precord -- (data Getoptsx__ = Getoptsx__ { ... } above)
