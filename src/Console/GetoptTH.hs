@@ -68,8 +68,8 @@ import Language.Haskell.TH.Syntax  ( lift )
 
 import Fluffy.Data.List                ( splitOn )
 import Fluffy.Data.String              ( ucfirst )
-import Fluffy.Language.TH              ( assign, assignN, infix2E, intE, listOfN
-                                       , mAppE, mAppEQ
+import Fluffy.Language.TH              ( appTIO, assign, assignN, infix2E, intE
+                                       , listOfN, mAppE, mAppEQ, mkSimpleTypedFun
                                        , nameE, nameEQ, stringEQ, tsArrows
                                        , tupleL
                                        )
@@ -167,15 +167,6 @@ effector g optdescs effectBind typenameN =  do
   (bs, binds) <- mapAndUnzipM (effectBind g) optdescs
   let ctor     = mAppE ((ConE $ typenameN) : fmap VarE bs)
   return (DoE ( binds ++ [ NoBindS (infix2E (VarE 'return) (VarE '($)) ctor) ]))
-
--- | apply IO to a type, in Q world
-appTIO :: Type -> Type
-appTIO = AppT (ConT ''IO)
-
-mkSimpleFun :: Type -> Name -> [Name] -> Exp -> [Dec]
-mkSimpleFun sig nam params body = 
-  [ SigD nam sig
-  , FunD nam [Clause (fmap VarP params) (NormalB body) []] ]
 
 -- mkopts ----------------------------------------------------------------------
 
@@ -447,20 +438,14 @@ mkopts getoptName arity arg_type optcfgs = do
 
         g <- newName "g"
         effector g optdescs effectBind typenameN >>= \eff ->
-          return -- [ -- (getoptsx_effect :: Getoptsx__ -> IO Getoptsx
+          return $ -- (getoptsx_effect :: Getoptsx__ -> IO Getoptsx
                    --  getoptsx_effect g = do { ... }
                    --  above)
-                   mkSimpleFun effectorSig (mkName effectName) [g] eff
---                   SigD (mkName effectName) effectorSig
---                 , FunD (mkName effectName) [Clause [VarP g] (NormalB eff) [] ]
-
+                   mkSimpleTypedFun effectorSig (mkName effectName) [g] eff ++
                    -- (getoptsx = (getopts getoptsx_) ...
                    --             (t2apply getoptsx_effect)
                    --  above)
-                 -- , 
-                 ++ [ 
-                   assign getoptName (InfixE (Just lhs) (VarE '(...)) (Just rhs))
-                 ]
+                   [ assign getoptName (infix2E lhs (VarE '(...)) rhs) ]
 
   concatM [ precord -- (data Getoptsx__ = Getoptsx__ { ... } above)
           , record  -- (data Getoptsx = Getoptsx { ... } above)
