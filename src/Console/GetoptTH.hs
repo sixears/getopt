@@ -34,7 +34,6 @@ where
 
 import Control.Monad  ( (=<<), liftM, mapAndUnzipM )
 import Data.List      ( isInfixOf, partition )
-import Debug.Trace    ( trace )
 
 -- data-default ------------------------
 
@@ -161,9 +160,6 @@ effector :: Name                                -- ^ Qname of the fn param
                                                 --   constructor to build to
          -> ExpQ
 effector g optdescs effectBind typenameN =  do
-  let o        = head optdescs
-  a           <- newName (name o)
-  dfg         <- dfGetter o
   (bs, binds) <- mapAndUnzipM (effectBind g) optdescs
   let ctor     = mAppE ((ConE $ typenameN) : fmap VarE bs)
   return (DoE ( binds ++ [ NoBindS (infix2E (VarE 'return) (VarE '($)) ctor) ]))
@@ -399,9 +395,7 @@ mkopts getoptName arity arg_type optcfgs = do
       -- create a record to hold final values to pass back to the user;
       -- (data Getoptsx = Getoptsx { ... } above)
       record :: DecsQ
-      record = mkLensedRecord typename
-                                 (fmap recordFields optdescs)
-                                 [''Show]
+      record = mkLensedRecord typename (fmap recordFields optdescs) [''Show]
 
       -- the effector is a function of type GetoptNampe__ -> IO GetoptName;
       -- which is to effect values that have been /parsed/ (e.g., in the

@@ -161,9 +161,6 @@ module Console.Getopt
   )
 where
 
--- getoptsx_effect should take an argument, not use a lambda
--- perlify build, dist, test, etc.  Hotter buffers.  Should be an exec in bin?
--- getoptsx_effect should pre-declare its type sig
 -- provide type sigs for generated functions in GetoptTH
 -- test & document what happens when a ?Thing value is used with a default.
 -- clean build from scratch

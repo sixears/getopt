@@ -94,7 +94,7 @@ $( mkopts "getoptsx" (ArgSome 1 3) "filename"
 --Y                  "alist int=>fn" "an alist of int to handle"
 --Y                  "[(Int, Handle)]" "[]"
 
---Z           example of parsing a custom type defined within this file 
+--Z           example of parsing a custom type defined within this file
 --A           example of strictly-positive integer (using custom munge)
 --B           example of custom checker?  (else kill OptDescParse: _check
         ])
@@ -103,7 +103,7 @@ $( mkopts "getoptsx" (ArgSome 1 3) "filename"
 
 main :: IO ()
 main = do
-  -- XXX is this arity used?  Seems to be redundant with the one to mkopts 
+  -- XXX is this arity used?  Seems to be redundant with the one to mkopts
   --     above
   (args, opts) <- getoptsx arity "filename"
                            (return . (readType "Int" :: String -> Int))

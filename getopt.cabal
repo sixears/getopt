@@ -47,6 +47,8 @@ cabal-version:       >=1.10
 
 
 library
+  ghc-options:         -O2 -W -Wall -fhelpful-errors
+
   -- Modules exported by the library.
   exposed-modules:     Console.Getopt,
                        Console.GetoptTH
@@ -70,7 +72,7 @@ library
                        regex-applicative ==0.3.*,
                        template-haskell  ==2.9.*,
 
-                       fluffy >=0.1.2.0 && < 0.2.0.0,
+                       fluffy >=0.1.2.1 && < 0.2.0.0,
                        text-block ==0.1.*
 
   -- Directories containing source files.
