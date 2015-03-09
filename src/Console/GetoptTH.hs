@@ -32,8 +32,8 @@ where
 
 -- base --------------------------------
 
-import Control.Monad  ( (=<<), liftM, mapAndUnzipM )
-import Data.List      ( isInfixOf, partition )
+import Control.Monad  ( liftM, mapAndUnzipM )
+import Data.List      ( partition )
 
 -- data-default ------------------------
 
@@ -45,31 +45,25 @@ import Control.Lens  ( (^.) )
 
 -- template-haskell --------------------
 
-import Language.Haskell.TH         ( Body( NormalB )
-                                   , Clause( Clause )
-                                   , Dec( FunD, SigD )
-                                   , Exp( AppE, ConE, DoE, InfixE
-                                        , LamE, ListE, SigE, VarE )
+import Language.Haskell.TH         ( Exp( AppE, ConE, DoE
+                                        , ListE, VarE )
                                    , ExpQ
                                    , Name
                                    , Pat( VarP )
-                                   , Pred( ClassP )
                                    , Q
                                    , Stmt( BindS, NoBindS )
-                                   , Type( AppT, ArrowT, ConT, ForallT, VarT )
-                                   , TyVarBndr( PlainTV )
-                                   , conE, mkName, newName, varT, varE
+                                   , Type( ConT, VarT )
+                                   , mkName, newName, varE
                                    )
 import Language.Haskell.TH.Lib     ( DecsQ, appE )
 import Language.Haskell.TH.Syntax  ( lift )
 
 -- fluffy ------------------------------
 
-import Fluffy.Data.List                ( splitOn )
 import Fluffy.Data.String              ( ucfirst )
-import Fluffy.Language.TH              ( appTIO, assign, assignN, infix2E, intE
+import Fluffy.Language.TH              ( appTIO, assign, assignN, infix2E
                                        , listOfN, mAppE, mAppEQ, mkSimpleTypedFun
-                                       , nameE, nameEQ, stringEQ, tsArrows
+                                       , nameEQ, stringEQ, tsArrows
                                        , tupleL
                                        )
 import Fluffy.Language.TH.Record       ( mkLensedRecord, mkLensedRecordDef )
@@ -77,14 +71,14 @@ import Fluffy.Language.TH.Record       ( mkLensedRecord, mkLensedRecordDef )
 -- this package --------------------------------------------
 
 import Console.Getopt           ( ArgArity(..), HelpOpts(..)
-                                , getopts, helpme, mkOpt, setval )
+                                , getopts, helpme, mkOpt )
 import Console.Getopt.OptDesc   ( OptDesc
-                                , descn, dflt, dfltTxt, precordDefFields
+                                , descn, dfltTxt, precordDefFields
                                 , recordFields, dfGetter
-                                , lensname, names, name, optSetVal, strt
+                                , names, name, optSetVal
                                 , summary
                                 , enactor
-                                , pclvField, pclvTypename
+                                , pclvTypename
                                 )
 
 --------------------------------------------------------------------------------
@@ -120,8 +114,8 @@ mkopt optdesc =
 -- | ExpQ variant of `helpme`
 
 helpmeQ :: ArgArity -> String -> ExpQ
-helpmeQ arity arg_type =
-  [| mkOpt "" [ "help" ] (helpme def { arg_arity = arity, arg_type = arg_type })
+helpmeQ arity argtype =
+  [| mkOpt "" [ "help" ] (helpme def { arg_arity = arity, arg_type = argtype })
      "this help"
      (concat [ "Provide help text: without an arg, produces a summary options "
              , "output; with an arg (--help=foo), then detailed help text for "
@@ -302,7 +296,7 @@ mkopts :: String                           -- ^ name of the getopts fn to
                                             -}
        -> DecsQ
 
-mkopts getoptName arity arg_type optcfgs = do
+mkopts getoptName arity argtype optcfgs = do
   {- mkopts "getoptsx" (ArgSome 1 3) "filename"
            [ "s|string::String#summary"
            , "incr|C::incr#increment summary\nincrement int longhelp"
@@ -345,7 +339,7 @@ mkopts getoptName arity arg_type optcfgs = do
                          "Maybe FilePath" "GHC.Base.id \"/etc/motd\"",
 
                  , mkOpt "" ["help"] helpme (def { arg_arity = ArgSome 1 3
-                                                 , arg_type  = "filename" })
+                                                 , argtype  = "filename" })
                          "this help" "Provide help text..." "" ""
                  ]
 
@@ -375,7 +369,7 @@ mkopts getoptName arity arg_type optcfgs = do
       -- name of a variable to hold the list of calls to mkOpt (getoptsx_ above)
       cfgName  = mkName (getoptName ++ "_")
       optdescs = fmap read optcfgs
-      opts     = fmap mkopt optdescs ++ [ helpmeQ arity arg_type ]
+      opts     = fmap mkopt optdescs ++ [ helpmeQ arity argtype ]
 
       -- assign a list of options (returned by mkOpt) to a name
       -- (getoptsx_ = [ mkOpt ... ] above)
