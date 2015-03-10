@@ -39,6 +39,10 @@ import Data.List      ( partition )
 
 import Data.Default  ( Default( def ) )
 
+-- deepseq -----------------------------
+
+import Control.DeepSeq  ( NFData )
+
 -- lens --------------------------------
 
 import Control.Lens  ( (^.) )
@@ -50,9 +54,11 @@ import Language.Haskell.TH         ( Exp( AppE, ConE, DoE
                                    , ExpQ
                                    , Name
                                    , Pat( VarP )
+                                   , Pred( ClassP )
                                    , Q
                                    , Stmt( BindS, NoBindS )
-                                   , Type( ConT, VarT )
+                                   , Type( ConT, ForallT, VarT )
+                                   , TyVarBndr( PlainTV )
                                    , mkName, newName, varE
                                    )
 import Language.Haskell.TH.Lib     ( DecsQ, appE )
@@ -82,81 +88,8 @@ import Console.Getopt.OptDesc   ( OptDesc
                                 )
 
 --------------------------------------------------------------------------------
-
--- concatM -----------------------------
-
-concatM :: Monad m => [m [a]] -> m [a]
-concatM = liftM concat . sequence
-
--- mkopts ----------------------------------------------------------------------
-
-mkopt :: OptDesc -> ExpQ
-mkopt optdesc =
-  let (shorts, longs) = partition ((1==) . length) $ optdesc ^. names
-   in -- mkOpt shorts longs
-      --       (optSetVal optdesc)
-      --       (optdesc ^. summary)
-      --       (optdesc ^. descn)
-      --       (pclvTypename optdesc)
-      --       (strtTxt optdesc)
-      mAppEQ [ nameEQ "mkOpt"
-             , appE (varE 'concat) (lift shorts) -- short options
-             , lift longs                        -- long  options
-             , optSetVal optdesc                 -- handler (setval*)
-             , stringEQ $ optdesc ^. summary     -- summary help
-             , stringEQ $ optdesc ^. descn       -- long help
-             , stringEQ $ pclvTypename optdesc   -- type name text (for help)
-             , stringEQ $ dfltTxt optdesc        -- default value (for help)
-             ]
-
--- helpmeQ ---------------------------------------------------------------------
-
--- | ExpQ variant of `helpme`
-
-helpmeQ :: ArgArity -> String -> ExpQ
-helpmeQ arity argtype =
-  [| mkOpt "" [ "help" ] (helpme def { arg_arity = arity, arg_type = argtype })
-     "this help"
-     (concat [ "Provide help text: without an arg, produces a summary options "
-             , "output; with an arg (--help=foo), then detailed help text for "
-             , "that option (if any is available) will be output."
-             ])
-     "" "" -- opt typename; dflt
-   |]
-
--- effector --------------------------------------------------------------------
-
-{- | build a (do) stmt that takes a GetoptName__ record, for each field in turn
-     extracts the PCLV, passes through the relevant defaulter, to the relevant
-     enactor; and ultimately builds a GetoptName record from the resultant values
-
-     type of the resulting expression is GetoptName__ -> IO GetoptName
--}
-
--- effector g = do
---   a <- enactor (dfGetter a___)
---   b <- enactor (dfGetter b___)
---   ...
---   return $ GetoptName a b
-
--- (do
---   string_x <- return (((fromMaybe "") . (view s___)) g);
---   incr_x   <- return (view incr___ g);
---   handle_x <- openFileRO (((fromMaybe "/etc/motd")
---                            . (view handle___)) g);
---   (return $ (Getoptsx string_x incr_x handle_x))
---  below)
-
-effector :: Name                                -- ^ Qname of the fn param
-         -> [OptDesc]                           -- ^ option field list
-         -> (Name -> OptDesc -> Q (Name, Stmt)) -- ^ optdesc enactor binder
-         -> Name                                -- ^ name of the type 
-                                                --   constructor to build to
-         -> ExpQ
-effector g optdescs effectBind typenameN =  do
-  (bs, binds) <- mapAndUnzipM (effectBind g) optdescs
-  let ctor     = mAppE ((ConE $ typenameN) : fmap VarE bs)
-  return (DoE ( binds ++ [ NoBindS (infix2E (VarE 'return) (VarE '($)) ctor) ]))
+--                              PUBLIC INTERFACE                              --
+--------------------------------------------------------------------------------
 
 -- mkopts ----------------------------------------------------------------------
 
@@ -408,32 +341,7 @@ mkopts getoptName arity argtype optcfgs = do
         dfg <- dfGetter o
         return (b, BindS (VarP b) (AppE (enactor o) (AppE dfg (VarE g))))
 
-      assign_getopt = do
-        a <- newName "a"
-        -- ArgArity -> String -> (String -> IO a) -> IO ([a], typename)
-        let typeSig = tsArrows [ ConT ''ArgArity
-                               , ConT ''String
-                               , tsArrows [ ConT ''String , appTIO(VarT a) ]
-                               , appTIO (tupleL [ listOfN a, typenameT ])
-                               ]
-
-            -- (getopts getoptsx_ above)
-            lhs = AppE (VarE 'getopts) (VarE cfgName)
-            -- (t2apply getoptsx_effect above)
-            rhs = AppE (VarE 't2apply) (VarE $ mkName effectName)
-            effectorSig = tsArrows [ typename__T
-                                   , appTIO typenameT ]
-
-        g <- newName "g"
-        effector g optdescs effectBind typenameN >>= \eff ->
-          return $ -- (getoptsx_effect :: Getoptsx__ -> IO Getoptsx
-                   --  getoptsx_effect g = do { ... }
-                   --  above)
-                   mkSimpleTypedFun effectorSig (mkName effectName) [g] eff ++
-                   -- (getoptsx = (getopts getoptsx_) ...
-                   --             (t2apply getoptsx_effect)
-                   --  above)
-                   [ assign getoptName (infix2E lhs (VarE '(...)) rhs) ]
+      assign_getopt = mkGetopt typenameT cfgName effectName typename__T optdescs effectBind typenameN getoptName
 
   concatM [ precord -- (data Getoptsx__ = Getoptsx__ { ... } above)
           , record  -- (data Getoptsx = Getoptsx { ... } above)
@@ -445,6 +353,123 @@ mkopts getoptName arity argtype optcfgs = do
             --  above)
           , assign_getopt
           ]
+
+--------------------------------------------------------------------------------
+--                             INTERNAL FUNCTIONS                             --
+--------------------------------------------------------------------------------
+
+mkGetopt typenameT cfgName effectName typename__T optdescs effectBind typenameN getoptName = do
+  a <- newName "a"
+  -- (NFData a, Show a) => 
+  -- ArgArity -> String -> (String -> IO a) -> IO ([a], typename)
+  let typeSig = 
+        ForallT [PlainTV a] [ClassP ''NFData [VarT a], ClassP ''Show [VarT a]] $
+        tsArrows [ ConT ''ArgArity
+                 , ConT ''String
+                 , tsArrows [ ConT ''String , appTIO(VarT a) ]
+                 , appTIO (tupleL [ listOfN a, typenameT ])
+                 ]
+
+      -- (getopts getoptsx_ above)
+      lhs = AppE (VarE 'getopts) (VarE cfgName)
+      -- (t2apply getoptsx_effect above)
+      rhs = AppE (VarE 't2apply) (VarE $ mkName effectName)
+      effectorSig = tsArrows [ typename__T
+                             , appTIO typenameT ]
+
+  g <- newName "g"
+  mkEffector g optdescs effectBind typenameN effectorSig effectName getoptName lhs rhs typeSig
+
+
+mkEffector g optdescs effectBind typenameN effectorSig effectName getoptName lhs rhs typeSig =
+  effector g optdescs effectBind typenameN >>= mkEffector_ effectorSig effectName g getoptName lhs rhs typeSig
+
+mkEffector_ effectorSig effectName g getoptName lhs rhs typeSig eff =
+    return $ -- (getoptsx_effect :: Getoptsx__ -> IO Getoptsx
+             --  getoptsx_effect g = do { ... }
+             --  above)
+             mkSimpleTypedFun effectorSig (mkName effectName) [g] eff ++
+             -- (getoptsx = (getopts getoptsx_) ...
+             --             (t2apply getoptsx_effect)
+             --  above)
+             mkSimpleTypedFun typeSig (mkName getoptName) [] (infix2E lhs (VarE '(...)) rhs)
+             -- [ assign getoptName (infix2E lhs (VarE '(...)) rhs) ]
+
+-- concatM -----------------------------
+
+concatM :: Monad m => [m [a]] -> m [a]
+concatM = liftM concat . sequence
+
+-- mkopts ----------------------------------------------------------------------
+
+mkopt :: OptDesc -> ExpQ
+mkopt optdesc =
+  let (shorts, longs) = partition ((1==) . length) $ optdesc ^. names
+   in -- mkOpt shorts longs
+      --       (optSetVal optdesc)
+      --       (optdesc ^. summary)
+      --       (optdesc ^. descn)
+      --       (pclvTypename optdesc)
+      --       (strtTxt optdesc)
+      mAppEQ [ nameEQ "mkOpt"
+             , appE (varE 'concat) (lift shorts) -- short options
+             , lift longs                        -- long  options
+             , optSetVal optdesc                 -- handler (setval*)
+             , stringEQ $ optdesc ^. summary     -- summary help
+             , stringEQ $ optdesc ^. descn       -- long help
+             , stringEQ $ pclvTypename optdesc   -- type name text (for help)
+             , stringEQ $ dfltTxt optdesc        -- default value (for help)
+             ]
+
+-- helpmeQ ---------------------------------------------------------------------
+
+-- | ExpQ variant of `helpme`
+
+helpmeQ :: ArgArity -> String -> ExpQ
+helpmeQ arity argtype =
+  [| mkOpt "" [ "help" ] (helpme def { arg_arity = arity, arg_type = argtype })
+     "this help"
+     (concat [ "Provide help text: without an arg, produces a summary options "
+             , "output; with an arg (--help=foo), then detailed help text for "
+             , "that option (if any is available) will be output."
+             ])
+     "" "" -- opt typename; dflt
+   |]
+
+-- effector --------------------------------------------------------------------
+
+{- | build a (do) stmt that takes a GetoptName__ record, for each field in turn
+     extracts the PCLV, passes through the relevant defaulter, to the relevant
+     enactor; and ultimately builds a GetoptName record from the resultant values
+
+     type of the resulting expression is GetoptName__ -> IO GetoptName
+-}
+
+-- effector g = do
+--   a <- enactor (dfGetter a___)
+--   b <- enactor (dfGetter b___)
+--   ...
+--   return $ GetoptName a b
+
+-- (do
+--   string_x <- return (((fromMaybe "") . (view s___)) g);
+--   incr_x   <- return (view incr___ g);
+--   handle_x <- openFileRO (((fromMaybe "/etc/motd")
+--                            . (view handle___)) g);
+--   (return $ (Getoptsx string_x incr_x handle_x))
+--  below)
+
+effector :: Name                                -- ^ Qname of the fn param
+         -> [OptDesc]                           -- ^ option field list
+         -> (Name -> OptDesc -> Q (Name, Stmt)) -- ^ optdesc enactor binder
+         -> Name                                -- ^ name of the type
+                                                --   constructor to build to
+         -> ExpQ
+effector g optdescs effectBind typenameN =  do
+  (bs, binds) <- mapAndUnzipM (effectBind g) optdescs
+  let ctor     = mAppE ((ConE $ typenameN) : fmap VarE bs)
+  return (DoE ( binds ++ [ NoBindS (infix2E (VarE 'return) (VarE '($)) ctor) ]))
+
 
 -- | like (.), but for a (first) fn of 3 args rather than 1
 (...) :: (a -> b -> c -> d) -> (d -> e) -> a -> b -> c -> e
