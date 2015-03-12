@@ -23,12 +23,13 @@ where
 -- THE PLAN: the programmer will create options using mkopts or similar.  An
 --           'option' is a description of how to parse command line strings,
 --           such that a set of Option Values is generated.  Given a function
---           name (first argument to mkopts) of "foo", two records will be
---           generated: "Foo" (the Option Value (OV) record) and "Foo__" (the
---           PCLV record).  The latter is the set of Parsed
---           Command-Line Values (PCLVs); these will be transformed into the
---           former by applying option defaults and then any IO actions required
---           to generate Option Values.
+--           name (first argument to mkopts) of "foo", (we'll call this the
+--           getopt_th fn) two records will be generated: "Foo" (the Option
+--           Value (OV) record) and "Foo__" (the PCLV record).  The latter is
+--           the set of Parsed Command-Line Values (PCLVs); these will be
+--           transformed into the former by applying option defaults and then
+--           any IO actions required to generate Option Values.  The function 
+--           that does this shall be called the 'effector'.
 
 -- base --------------------------------
 
@@ -49,7 +50,8 @@ import Control.Lens  ( (^.) )
 
 -- template-haskell --------------------
 
-import Language.Haskell.TH         ( Exp( AppE, ConE, DoE
+import Language.Haskell.TH         ( Dec
+                                   , Exp( AppE, ConE, DoE
                                         , ListE, VarE )
                                    , ExpQ
                                    , Name
@@ -245,10 +247,15 @@ mkopts getoptName arity argtype optcfgs = do
        deriving Show
      instance Default Getoptsx__ where def = Getoptsx__ Nothing 0 Nothing
 
+     s___ :: Lens' Getoptsx__ (Maybe String)
      s___      a b = fmap asn (a $ (_s___ b))
        where asn x = b { _s___      = x }
+
+     incr___ :: Lens' Getoptsx_ Int
      incr___   a b = fmap asn (a $ (_incr___ b))
        where asn x = b {_incr___    = x }
+
+     handle___ :: Lens' Getopts__ (Maybe FilePath)
      handle___ a b = fmap asn (a $ ( _handle___ b))
        where asn x = b { _handle___ = x }
 
@@ -258,8 +265,13 @@ mkopts getoptName arity argtype optcfgs = do
                               }
        deriving Show
 
+     s :: Lens' Getoptsx String
      s      a b = fmap asn (a $ (_s b))      where asn x = b { _s      = x }
+
+     incr :: Lens' Getoptsx Int
      incr   a b = fmap asn (a $ (_incr b))   where asn x = b { _incr   = x }
+
+     handle :: Lens' Getoptsx Handle
      handle a b = fmap asn (a $ (_handle b)) where asn x = b { _handle = x }
 
      getoptsx_ = [ mkOpt "s" ["string"] (setval parseAs "String" s___)
@@ -284,6 +296,8 @@ mkopts getoptName arity argtype optcfgs = do
                                      . (view handle___)) g);
         (return $ (Getoptsx string_x incr_x handle_x))
 
+    getoptsx :: (NFData a, Show a) => ArgArity -> String -> (String -> IO a)
+                                   -> IO ([a], Getoptsx)
     getoptsx = (getopts getoptsx_) ... (t2apply getoptsx_effect)
 
   -}
@@ -360,9 +374,9 @@ mkopts getoptName arity argtype optcfgs = do
 
 mkGetopt typenameT cfgName effectName typename__T optdescs effectBind typenameN getoptName = do
   a <- newName "a"
-  -- (NFData a, Show a) => 
+  -- (NFData a, Show a) =>
   -- ArgArity -> String -> (String -> IO a) -> IO ([a], typename)
-  let typeSig = 
+  let typeSig =
         ForallT [PlainTV a] [ClassP ''NFData [VarT a], ClassP ''Show [VarT a]] $
         tsArrows [ ConT ''ArgArity
                  , ConT ''String
@@ -370,32 +384,85 @@ mkGetopt typenameT cfgName effectName typename__T optdescs effectBind typenameN 
                  , appTIO (tupleL [ listOfN a, typenameT ])
                  ]
 
-      -- (getopts getoptsx_ above)
-      lhs = AppE (VarE 'getopts) (VarE cfgName)
-      -- (t2apply getoptsx_effect above)
-      rhs = AppE (VarE 't2apply) (VarE $ mkName effectName)
       effectorSig = tsArrows [ typename__T
                              , appTIO typenameT ]
 
+  mkEffector optdescs effectBind typenameN effectorSig effectName getoptName cfgName typenameT
+
+
+mkEffector optdescs effectBind typenameN effectorSig effectName getoptName cfgName typenameT =
+  mkEffector_ effectorSig cfgName effectName getoptName typenameT (mkEffectorBody optdescs effectBind typenameN)
+
+--X mkEffector_ :: Type -> Name -> String -> Name -> String -> Type -> Exp -> Q [Dec]
+mkEffector_ :: Type -> Name -> String -> String -> Type -> (Name -> ExpQ) -> Q [Dec]
+
+mkEffector_ effectorSig cfgName effectName getoptName typenameT eff = do
   g <- newName "g"
-  mkEffector g optdescs effectBind typenameN effectorSig effectName getoptName lhs rhs typeSig
+  typeSig <- getopt_th_ts typenameT
+  eff' <- eff g
+  return $ mk_effector effectorSig effectName g eff' ++
+           -- (getoptsx = (getopts getoptsx_) ...
+           --             (t2apply getoptsx_effect)
+           --  above)
+           mk_getopt_th typeSig getoptName cfgName effectName
 
+-- mk_effector -----------------------------------------------------------------
 
-mkEffector g optdescs effectBind typenameN effectorSig effectName getoptName lhs rhs typeSig =
-  effector g optdescs effectBind typenameN >>= mkEffector_ effectorSig effectName g getoptName lhs rhs typeSig
+-- | create effector fn, inc. type signature
+--
+--   (getoptsx_effect :: Getoptsx__ -> IO Getoptsx
+--    getoptsx_effect g = do { ... }
+--    above)
+  
+mk_effector :: Type    -- ^ type signature of the fn to create  
+            -> String  -- ^ name of the effector fn to create
+            -> Name    -- ^ function parameter name
+            -> Exp     -- ^ effector body
+            -> [Dec]
 
-mkEffector_ effectorSig effectName g getoptName lhs rhs typeSig eff =
-    return $ -- (getoptsx_effect :: Getoptsx__ -> IO Getoptsx
-             --  getoptsx_effect g = do { ... }
-             --  above)
-             mkSimpleTypedFun effectorSig (mkName effectName) [g] eff ++
-             -- (getoptsx = (getopts getoptsx_) ...
-             --             (t2apply getoptsx_effect)
-             --  above)
-             mkSimpleTypedFun typeSig (mkName getoptName) [] (infix2E lhs (VarE '(...)) rhs)
-             -- [ assign getoptName (infix2E lhs (VarE '(...)) rhs) ]
+mk_effector ts nam g eff =
+  mkSimpleTypedFun ts (mkName nam) [g] eff
 
--- concatM -----------------------------
+-- mk_getopt_th ----------------------------------------------------------------
+
+-- | generated getopts-like fn
+--
+--   (getoptsx = (getopts getoptsx_) ... (t2apply getoptsx_effect)
+--    above)
+
+mk_getopt_th :: Type
+             -> String  -- ^ name of fn to generate (getoptsx above)
+             -> Name    -- ^ name of list of calls to mkOpt (getoptsx_ above)
+             -> String  -- ^ name of effector fn (getopts_effect above)
+             -> [Dec]
+
+mk_getopt_th sig getoptName cfgName effectName =
+  mkSimpleTypedFun sig (mkName getoptName) [] (infix2E lhs (VarE '(...)) rhs)
+    where -- (getopts getoptsx_ above)
+          lhs = AppE (VarE 'getopts) (VarE cfgName)
+          -- (t2apply getoptsx_effect above)
+          rhs = AppE (VarE 't2apply) (VarE $ mkName effectName)
+
+-- getopt_th_ts ----------------------------------------------------------------
+
+{- | type signature for generated getopts-like fn, e.g.,
+
+     > (NFData a, Show a) =>
+     >  ArgArity -> String -> (String -> IO a) -> IO ([a], Getoptsx)
+ -}
+
+getopt_th_ts :: Type -> Q Type
+getopt_th_ts t = do
+  a <- newName "a"
+  return $
+    ForallT [PlainTV a] [ClassP ''NFData [VarT a], ClassP ''Show [VarT a]] $
+    tsArrows [ ConT ''ArgArity
+             , ConT ''String
+             , tsArrows [ ConT ''String , appTIO(VarT a) ]
+             , appTIO (tupleL [ listOfN a, t ])
+             ]
+
+-- concatM ---------------------------------------------------------------------
 
 concatM :: Monad m => [m [a]] -> m [a]
 concatM = liftM concat . sequence
@@ -436,7 +503,7 @@ helpmeQ arity argtype =
      "" "" -- opt typename; dflt
    |]
 
--- effector --------------------------------------------------------------------
+-- mkEffectorBody --------------------------------------------------------------
 
 {- | build a (do) stmt that takes a GetoptName__ record, for each field in turn
      extracts the PCLV, passes through the relevant defaulter, to the relevant
@@ -445,7 +512,7 @@ helpmeQ arity argtype =
      type of the resulting expression is GetoptName__ -> IO GetoptName
 -}
 
--- effector g = do
+-- mkEffectorBody g = do
 --   a <- enactor (dfGetter a___)
 --   b <- enactor (dfGetter b___)
 --   ...
@@ -459,17 +526,19 @@ helpmeQ arity argtype =
 --   (return $ (Getoptsx string_x incr_x handle_x))
 --  below)
 
-effector :: Name                                -- ^ Qname of the fn param
-         -> [OptDesc]                           -- ^ option field list
-         -> (Name -> OptDesc -> Q (Name, Stmt)) -- ^ optdesc enactor binder
-         -> Name                                -- ^ name of the type
-                                                --   constructor to build to
-         -> ExpQ
-effector g optdescs effectBind typenameN =  do
+mkEffectorBody :: [OptDesc]  -- ^ option field list
+               -> (Name -> OptDesc -> Q (Name, Stmt)) 
+                             -- ^ optdesc enactor binder
+               -> Name       -- ^ name of the type constructor to build to
+               -> Name       -- ^ name of the fn param
+               -> ExpQ
+
+mkEffectorBody optdescs effectBind typenameN g =  do
   (bs, binds) <- mapAndUnzipM (effectBind g) optdescs
   let ctor     = mAppE ((ConE $ typenameN) : fmap VarE bs)
   return (DoE ( binds ++ [ NoBindS (infix2E (VarE 'return) (VarE '($)) ctor) ]))
 
+-- ... -------------------------------------------------------------------------
 
 -- | like (.), but for a (first) fn of 3 args rather than 1
 (...) :: (a -> b -> c -> d) -> (d -> e) -> a -> b -> c -> e
