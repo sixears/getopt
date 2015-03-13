@@ -1,5 +1,6 @@
-{-# LANGUAGE FlexibleInstances #-}  -- for class Typeish String
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE FlexibleInstances   #-}  -- for class Typeish String
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
 
 {- |
 
@@ -275,6 +276,7 @@ mkopts getoptName arity argtype optcfgs = do
      handle :: Lens' Getoptsx Handle
      handle a b = fmap asn (a $ (_handle b)) where asn x = b { _handle = x }
 
+     getoptsx_ :: [Option Getoptsx_]
      getoptsx_ = [ mkOpt "s" ["string"] (setval parseAs "String" s___)
                          "string summary" "" "Maybe String" "\"\""
                  , mkOpt "C" ["incr"]   (setvalc incr___)
@@ -303,14 +305,13 @@ mkopts getoptName arity argtype optcfgs = do
 
   -}
 
-  let optdescs = fmap read optcfgs
-      opts     = fmap mkopt optdescs ++ [ helpmeQ arity argtype ]
+  let optdescs :: [OptDesc]
+      optdescs = fmap read optcfgs
 
       -- assign a list of options (returned by mkOpt) to a name
-      -- (getoptsx_ = [ mkOpt ... ] above)
-      asgn_mkopts :: [Exp] -> DecsQ
-      asgn_mkopts o  = return [ SigD (cfg_name getoptName) (AppT ListT (AppT (ConT ''Option) (pclv_typename getoptName)))
-                              , assignN (cfg_name getoptName) (ListE o)]
+      -- (getoptsx_ :: [Option Getoptsx_]; getoptsx_ = [ mkOpt ... ] above)
+      mkopts_ts :: Type
+      mkopts_ts = AppT ListT (AppT (ConT ''Option) (pclv_typename getoptName))
 
       -- create a record to hold PCLVs.  This is created in one pass; and when
       -- it comes to creating the OVs record, defaults are inserted as necessary
@@ -325,14 +326,24 @@ mkopts getoptName arity argtype optcfgs = do
       -- create a record to hold final values to pass back to the user;
       -- (data Getoptsx = Getoptsx { ... } above)
       record :: DecsQ
-      record = mkLensedRecord (ov_typename getoptName) 
-                              (fmap recordFields optdescs) 
+      record = mkLensedRecord (ov_typename getoptName)
+                              (fmap recordFields optdescs)
                               [''Show]
 
-  concatM [ precord -- (data Getoptsx__ = Getoptsx__ { ... } above)
-          , record  -- (data Getoptsx = Getoptsx { ... } above)
-            -- assign a list of mkOpt calls to the chosen var
-          , asgn_mkopts =<< sequence opts -- (getoptsx_ = [ mkOpt ... ] above)
+  opts :: [Exp] <- sequence $ fmap mkopt optdescs ++ [ helpmeQ arity argtype ]
+  -- assign a list of mkOpt calls to the chosen var
+  -- (getoptsx_ :: [Option Getoptsx_];getoptsx_ = [ mkOpt ... ] above)
+  let asgn_mkopts :: DecsQ
+      asgn_mkopts = return [ -- getoptsx_ :: [Option Getoptsx_]
+                             SigD (cfg_name getoptName) mkopts_ts
+                           , -- getoptsx_ = [ mkOpt ... ]
+                             assignN (cfg_name getoptName) (ListE opts)
+                           ]
+
+
+  concatM [ precord      -- (data Getoptsx__ = Getoptsx__ { ... } above)
+          , record       -- (data Getoptsx = Getoptsx { ... }     above)
+          , asgn_mkopts  -- (getoptsx_ ...                        above)
             -- (getoptsx_effect :: Getoptsx__ -> IO Getoptsx
             --  getoptsx_effect pclv = pclv -> do { ... }
             --  getoptsx :: (NFData a, Show a) => ArgArity -> String
@@ -377,7 +388,7 @@ mkGetoptTH optdescs getoptName = do
   eff     <- mkEffector optdescs getoptName
   let getopt_th = mk_getopt_th typeSig getoptName
   return $ eff ++ getopt_th
-           
+
 
 -- mkEffector ------------------------------------------------------------------
 
