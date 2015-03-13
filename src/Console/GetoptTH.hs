@@ -51,7 +51,7 @@ import Control.Lens  ( (^.) )
 
 -- template-haskell --------------------
 
-import Language.Haskell.TH         ( Dec
+import Language.Haskell.TH         ( Dec( SigD )
                                    , Exp( AppE, ConE, DoE
                                         , ListE, VarE )
                                    , ExpQ
@@ -60,7 +60,7 @@ import Language.Haskell.TH         ( Dec
                                    , Pred( ClassP )
                                    , Q
                                    , Stmt( BindS, NoBindS )
-                                   , Type( ConT, ForallT, VarT )
+                                   , Type( AppT, ConT, ForallT, ListT, VarT )
                                    , TyVarBndr( PlainTV )
                                    , mkName, newName, varE
                                    )
@@ -79,7 +79,7 @@ import Fluffy.Language.TH.Record       ( mkLensedRecord, mkLensedRecordDef )
 
 -- this package --------------------------------------------
 
-import Console.Getopt           ( ArgArity(..), HelpOpts(..)
+import Console.Getopt           ( ArgArity(..), HelpOpts(..), Option
                                 , getopts, helpme, mkOpt )
 import Console.Getopt.OptDesc   ( OptDesc
                                 , descn, dfltTxt, precordDefFields
@@ -309,7 +309,8 @@ mkopts getoptName arity argtype optcfgs = do
       -- assign a list of options (returned by mkOpt) to a name
       -- (getoptsx_ = [ mkOpt ... ] above)
       asgn_mkopts :: [Exp] -> DecsQ
-      asgn_mkopts o  = return [assignN (cfg_name getoptName) (ListE o)]
+      asgn_mkopts o  = return [ SigD (cfg_name getoptName) (AppT ListT (AppT (ConT ''Option) (pclv_typename getoptName)))
+                              , assignN (cfg_name getoptName) (ListE o)]
 
       -- create a record to hold PCLVs.  This is created in one pass; and when
       -- it comes to creating the OVs record, defaults are inserted as necessary
@@ -324,7 +325,9 @@ mkopts getoptName arity argtype optcfgs = do
       -- create a record to hold final values to pass back to the user;
       -- (data Getoptsx = Getoptsx { ... } above)
       record :: DecsQ
-      record = mkLensedRecord (ov_typename getoptName) (fmap recordFields optdescs) [''Show]
+      record = mkLensedRecord (ov_typename getoptName) 
+                              (fmap recordFields optdescs) 
+                              [''Show]
 
   concatM [ precord -- (data Getoptsx__ = Getoptsx__ { ... } above)
           , record  -- (data Getoptsx = Getoptsx { ... } above)
