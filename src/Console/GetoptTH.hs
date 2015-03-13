@@ -420,7 +420,7 @@ mk_effector :: Type    -- ^ type signature of the fn to create
             -> Exp     -- ^ effector body
             -> [Dec]
 
-mk_effector ts nam g eff = mkSimpleTypedFun ts (mkName nam) [g] eff
+mk_effector ts nam g = mkSimpleTypedFun ts (mkName nam) [g]
 
 -- mk_getopt_th ----------------------------------------------------------------
 
@@ -454,7 +454,7 @@ mk_getopt_th sig getoptName =
 mkGetoptTHTypeSig :: Type -> Q Type
 mkGetoptTHTypeSig t = do
   a <- newName "a"
-  return $
+  return .
     ForallT [PlainTV a] [ClassP ''NFData [VarT a], ClassP ''Show [VarT a]] $
     tsArrows [ ConT ''ArgArity
              , ConT ''String

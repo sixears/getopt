@@ -108,7 +108,8 @@ main = do
   (args, opts) <- getoptsx arity "filename"
                            (return . (readType "Int" :: String -> Int))
   forM_ [ "ARGS: " ++ show args, "OPTS: "  ++ show opts ] putStrLn
-  putStrLn $ "s: " ++ show (opts ^. s)
-  putStrLn $ "i: " ++ show (opts ^. i)
-  putStrLn $ "incr: " ++ show (opts ^. incr)
-  putStrLn $ "decr: " ++ show (opts ^. decr)
+  putStrLn $ "s     : " ++ show (opts ^. s)
+  putStrLn $ "i     : " ++ show (opts ^. i)
+  putStrLn $ "incr  : " ++ show (opts ^. incr)
+  putStrLn $ "decr  : " ++ show (opts ^. decr)
+  putStrLn $ "handle: " ++ show (opts ^. handle)

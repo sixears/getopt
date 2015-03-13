@@ -13,6 +13,10 @@ import qualified Data.Map as Map
 
 import System.FilePath.Posix  ( joinPath )
 
+-- lens --------------------------------
+
+import Control.Lens  ( over, _1 )
+
 -- process -----------------------------
 
 import System.Process  ( readProcessWithExitCode )
@@ -29,7 +33,8 @@ import Test.TAP  ( Test, diag, explain, is, like, ok, test )
 
 -- Fluffy ------------------------------
 
-import Fluffy.Data.List   ( splitOn2 )
+import Fluffy.Data.List    ( splitOn2 )
+import Fluffy.Data.String  ( stripEnd )
 
 --------------------------------------------------------------------------------
 
@@ -78,7 +83,7 @@ check_invocation exec name iargs exp_exit exp_args exp_opt exp_items exp_err = d
       (arstr : opt_str : rest) = outs ++ replicate (2 - length outs) ""
       (_argh, args) = splitOn2 ": " arstr
       (_opth, opts) = splitOn2 ": " opt_str
-      items = Map.fromList $ fmap (splitOn2 ": ") rest
+      items = (Map.fromList . fmap (over _1 stripEnd . splitOn2 ": ")) rest
       nm = ((name ++ " ") ++)
       eexit :: Int -> ExitCode
       eexit 0 = ExitSuccess
@@ -109,7 +114,9 @@ main = do
   let opt   = Getoptsx { _s = "", _i = 4, _incr = 0, _decr = 6
                        , _handle = HandleR "/etc/motd" }
       items = Map.fromList [ ("i", "4"), ("s", "\"\"")
-                           , ("incr", "0"), ("decr", "6") ]
+                           , ("incr", "0"), ("decr", "6") 
+                           , ("handle", "{handle: /etc/motd}")
+                           ]
 
   (fmap concat . sequence)
     [ check "error invocation"  []    2 []  Nothing    Map.empty
