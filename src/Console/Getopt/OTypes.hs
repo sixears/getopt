@@ -41,7 +41,7 @@ import Language.Haskell.TH  ( Exp ( AppE, ConE, LitE, SigE, VarE )
 
 -- fluffy ------------------------------
 
-import Fluffy.Language.TH       ( composeE, stringE )
+import Fluffy.Language.TH       ( stringE )
 import Fluffy.Language.TH.Type  ( readType )
 
 -- this package --------------------------------------------

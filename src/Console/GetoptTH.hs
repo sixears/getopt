@@ -162,6 +162,10 @@ import Console.Getopt.OptDesc   ( OptDesc
        Each lensname must be unique both within the option set and be a unique
        function name within the compilation context.
 
+       The lensname, whether explicit or implicitly 'inherited' from the option
+       names, may not begin with a capital letter (because it becomes a function
+       in code)
+
    * type
 
        The value type of the option.  This is the type of the value that is

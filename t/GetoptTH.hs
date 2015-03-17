@@ -40,6 +40,7 @@ import Fluffy.Data.String  ( stripEnd )
 
 data Getoptsx = Getoptsx { _s      :: String
                          , _i      :: Int
+                         , _mebbei :: Maybe Int
                          , _incr   :: Int
                          , _decr   :: Int
                          , _handle :: HandleR
@@ -112,8 +113,9 @@ main = do
       check        = check_invocation getopt_th
 
   let opt   = Getoptsx { _s = "", _i = 4, _incr = 0, _decr = 6
-                       , _handle = HandleR "/etc/motd" }
+                       , _handle = HandleR "/etc/motd", _mebbei = Nothing }
       items = Map.fromList [ ("i", "4"), ("s", "\"\"")
+                           , ("mebbei", "Nothing")
                            , ("incr", "0"), ("decr", "6") 
                            , ("handle", "{handle: /etc/motd}")
                            ]

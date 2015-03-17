@@ -111,6 +111,7 @@ main = do
   forM_ [ "ARGS: " ++ show args, "OPTS: "  ++ show opts ] putStrLn
   putStrLn $ "s     : " ++ show (opts ^. s)
   putStrLn $ "i     : " ++ show (opts ^. i)
+  putStrLn $ "mebbei: " ++ show (opts ^. mebbei)
   putStrLn $ "incr  : " ++ show (opts ^. incr)
   putStrLn $ "decr  : " ++ show (opts ^. decr)
   putStrLn $ "handle: " ++ show (opts ^. handle)

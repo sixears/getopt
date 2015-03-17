@@ -28,7 +28,6 @@ where
 
 import Data.List   ( isPrefixOf )
 import Data.Maybe  ( fromMaybe )
-import Debug.Trace  ( trace )
 
 -- lenses ------------------------------
 
@@ -136,8 +135,7 @@ dfGetter o =
       getter d = composeE (AppE (VarE 'fromMaybe) d) (viewE iF)
                                     
    in if "Maybe " `isPrefixOf` pclvTypename o && head (optionTypename o) /= '?'
-      then trace ("pclv: " ++ pclvTypename o ++ "\toption: " ++ optionTypename o) 
-            $ (o ^. dflt) >>= \d -> return (getter d)
+      then (o ^. dflt) >>= \d -> return (getter d)
       else return (viewE iF)
 
 -- recordFields ----------------------------------------------------------------
