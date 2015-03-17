@@ -135,6 +135,19 @@ test-suite getopt-th
 
 -- not really a benchmark; rather a compiled test script that I don't want
 -- installed
+Benchmark getopt-ex-hs
+  ghc-options:         -O2 -W -Wall -fhelpful-errors
+  type:                exitcode-stdio-1.0
+  main-is:             getopt-ex.hs
+  hs-source-dirs:      t
+  build-depends:       base, data-default, lens, regex-applicative,
+                       fluffy, test-tap, getopt
+  default-language:    Haskell2010
+
+----------------------------------------
+
+-- not really a benchmark; rather a compiled test script that I don't want
+-- installed
 Benchmark getopt-th-hs
   ghc-options:         -O2 -W -Wall -fhelpful-errors
   type:                exitcode-stdio-1.0
@@ -143,4 +156,3 @@ Benchmark getopt-th-hs
   build-depends:       base, data-default, lens, regex-applicative,
                        fluffy, test-tap, getopt
   default-language:    Haskell2010
-

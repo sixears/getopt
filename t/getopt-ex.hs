@@ -4,10 +4,8 @@
 
 -- base --------------------------------
 
-import Control.Exception  ( SomeException, evaluate, try )
 import Control.Monad      ( forM_ )
-import Data.List          ( intercalate, sort )
-import System.IO          ( Handle, IOMode( ReadMode), openFile )
+import System.IO          ( IOMode( ReadMode), openFile )
 
 -- data-default ------------------------
 
@@ -15,37 +13,40 @@ import Data.Default  ( Default( def ) )
 
 -- lens --------------------------------
 
-import Control.Lens  ( (&), (^.), (.~), (%~), Lens', makeLenses )
+import Control.Lens  ( makeLenses )
 
 -- Fluffy ------------------------------
 
-import Fluffy.Data.List         ( splitOn )
-import Fluffy.Console.Getopt    ( ArgArity( ArgSome ), HelpOpts(..), Option
-                                , getopts, helpme, mkOpt, mkOptsB, progName
-                                , setvalOW, setval, setvalc, setvalc', setvals
-                                , setvals', setvalt, setval', setvalAList'
-                                )
 import Fluffy.Language.TH.Type  ( readType )
 
+-- this package --------------------------------------------
+
+import Console.Getopt    ( ArgArity( ArgSome ), HelpOpts(..)
+                         , NFHandle( NFHandle ), Option
+                         , getopts, helpme, mkOpt, mkOptsB
+                         , setvalOW, setval, setvalc, setvalc', setvals
+                         , setvals', setvalt, setvalAList'
+                         )
 --------------------------------------------------------------------------------
 
 data Opts = Opts { _string   :: Maybe String
                  , _int      :: Int
-                 , _handles  :: [Handle]
+                 , _handles  :: [NFHandle]
                  , _bool     :: Bool
                  , _bool2    :: Maybe Bool
-                 , _corn     :: String
                  , _list     :: [Int]
-                 , _alist    :: [(Int, Handle)]
+                 , _alist    :: [(Int, NFHandle)]
+                 , _mebbei   :: Maybe Int
                  }
   deriving (Show, Eq)
 
 $( makeLenses ''Opts )
 
+arity :: ArgArity
 arity = ArgSome 1 3
 
 instance Default Opts where
-  def = Opts Nothing 0 [] False Nothing "" [] []
+  def = Opts Nothing 0 [] False Nothing [] [] Nothing
 
 optCfg :: [Option Opts]
 optCfg = [ mkOpt "s"  [ "string"  ] (setval return string) "string" "String" 
@@ -57,7 +58,7 @@ optCfg = [ mkOpt "s"  [ "string"  ] (setval return string) "string" "String"
          , mkOpt "D"  [ "decrement"  ] (setvalc' int)
                       "decrement" "Decrement int" "Int" "0"
          , mkOpt "h"  [ "handle"  ]
-                 (setvals (`openFile` ReadMode) handles)
+                 (setvals ((fmap NFHandle) . (`openFile` ReadMode)) handles)
                  "handle" "Handle" "[Handle]" "[]"
          , mkOpt "b" [ "bool" ] (setvalt bool)
                  (    "the quick brown fox jumped over the lazy dog, then fell "
@@ -73,9 +74,11 @@ optCfg = [ mkOpt "s"  [ "string"  ] (setval return string) "string" "String"
                  "int list"  "[Int]" "[Int]" "[]"
          , mkOpt "c" [] (setvals' "," (return . readType "Int") list)
                  "comma-ilist" "a comma-separated list of integers" "[Int]" "[]"
+         , mkOpt "m" [] (setval (return . readType "Int") mebbei) 
+                  "maybe int" "maybe int'" "?Maybe" ""
          , mkOpt "a" [ "alist" ] (setvalAList' "=>"
                                               (const . return . readType "Int")
-                                              (\ x _ _ -> openFile x ReadMode)
+                                              (\ x _ _ -> (fmap NFHandle) $ openFile x ReadMode)
                                               alist )
                  "alist int=>fn" "an alist of int to handle" 
                  "[(Int, Handle)]" "[]"
@@ -86,7 +89,8 @@ optCfg = [ mkOpt "s"  [ "string"  ] (setval return string) "string" "String"
 
 ----------------------------------------
 
+main :: IO()
 main = do
-  (args, opts) <- getopts optCfg arity "filename" 
+  (args, opts) <- getopts optCfg arity "int" 
                           (return . (readType "Int" :: String -> Int)) 
   forM_ [ "ARGS: " ++ show args, "OPTS:"  ++ show opts ] putStrLn

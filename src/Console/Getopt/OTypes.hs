@@ -23,8 +23,8 @@ where
 
 -- base --------------------------------
 
-import Data.Char  ( isUpper )
-import System.IO  ( Handle, IOMode( ReadMode ), openFile )
+import Data.Char   ( isUpper )
+import System.IO   ( Handle, IOMode( ReadMode ), openFile )
 
 -- data-default ------------------------
 
@@ -41,7 +41,7 @@ import Language.Haskell.TH  ( Exp ( AppE, ConE, LitE, SigE, VarE )
 
 -- fluffy ------------------------------
 
-import Fluffy.Language.TH       ( stringE )
+import Fluffy.Language.TH       ( composeE, stringE )
 import Fluffy.Language.TH.Type  ( readType )
 
 -- this package --------------------------------------------
@@ -116,7 +116,7 @@ instance Default OptTypes where
                  , optionTypename_ = "-UNIMPLEMENTED OPTION TYPE-"
                  , setter_         = stringE "-UNIMPLEMENTED SETTER-"
                  , parser_         = stringE "-UNIMPLEMENTED PARSER-"
-                 , enactor_        = stringE "-UNIMPLEMENTED UPDATERIO-"
+                 , enactor_        = stringE "-UNIMPLEMENTED ENACTOR-"
                  , default_        = Just $ ConE 'Nothing
                  , start_          = Just $ ConE 'Nothing
                  , startIsDefault_ = False
@@ -137,6 +137,11 @@ readInt = readParser "Int"
 
 openFileRO :: FilePath -> IO Handle
 openFileRO fn = openFile fn ReadMode
+
+-- | call setval on a thing parsed to type t
+setval_as :: String -> Exp
+setval_as t = -- [q| setval (parseAs t) |]
+              AppE (VarE 'setval) (AppE (VarE 'parseAs) (stringE t))
 
 ------------------------------------------------------------
 
@@ -174,8 +179,9 @@ oTypes "filero" = def { pclvTypename_   = "Maybe FilePath"
 oTypes ('M':'a':'y':'b':'e':' ':t) = oTypes ('?' : t)
 oTypes ('?':t) = def { pclvTypename_   = "Maybe " ++ t
                      , optionTypename_ = '?' : t
-                       -- [| readType t :: String -> t |]
                      , parser_         = readParser t
+                     , setter_         = setval_as t
+                     , enactor_        = VarE 'return -- composeE (VarE 'return) (ConE 'Just)
                      }
 
 oTypes tt@('[':t) | last t == ']' =
@@ -191,10 +197,7 @@ oTypes [] = error "empty typestring"
 oTypes t@(h:_) | isUpper h =
                  def { pclvTypename_   = "Maybe " ++ t
                      , optionTypename_ = t
-                     , setter_         = -- [q| setval (parseAs t) |]
-                                         AppE (VarE 'setval)
-                                              (AppE (VarE 'parseAs)
-                                                    (stringE t))
+                     , setter_         = setval_as t
                      , enactor_        = VarE 'return
                      , parser_         = readParser t
                      , default_        =
