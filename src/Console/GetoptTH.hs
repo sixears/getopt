@@ -208,7 +208,11 @@ import Console.Getopt.OptDesc   ( OptDesc
 
            This is like t, except that the value is wrapped in a Maybe; if no
            value is provided on the command line is provided, you get Nothing.
-           DOCUMENT WHAT HAPPENS WHEN A DEFAULT VALUE IS PROVIDED.
+           Compilation will fail if you provide a default value 
+           (with <default>); at that point, the use of Maybe doesn't make a
+           whole lot of sense (since you would be guaranteed a Just something).
+           If you really, really want a Maybe type with a default, use an 
+           explicit Maybe.
 
          * [t]
 

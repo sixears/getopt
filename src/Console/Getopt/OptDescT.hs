@@ -158,7 +158,7 @@ errf typ tt s =
 -- | typename regex; /^::([][?.0-9A-Za-z]+)/
 
 opttypename :: RE Char String
-opttypename = string "::" *> some (psym (\c -> isAlphaNum c || c `elem` "[?]."))
+opttypename = string "::" *> some (psym (\c -> isAlphaNum c || c `elem` "[?]. "))
 
 -- | default value regex; /^([<({])[^(inverse \1)](inverse \1)/
 
@@ -302,7 +302,7 @@ readsPrecOptDesc _ s =
       pOptSumm :: RE Char (OptDesc -> OptDesc)
       pOptSumm =  set summary <$> optsumm
 
-   in if null $ o ^. names
+  in if null $ o ^. names
       then error "no option name defined"
       -- returning [ (o,r) ] with a non-null r will cause
       -- a 'Prelude.read: no parse' error.  We can give a
@@ -311,6 +311,12 @@ readsPrecOptDesc _ s =
            then if isUpper $ head (o ^. lensname)
                 then error $ printf (    "lens '%s' may not begin with an "
                                       ++ "upper-case letter") (o ^. lensname)
-                else [ (o,"") ]
+                else -- we don't allow <dflt> with ?type, as that makes no sense
+                     -- and would in practice be ignored by the mechanism
+                     if    head (o ^. typename) == '?' 
+                        && (pprintQ $ o ^. dflt) /= pprintQ [| Nothing |]
+                     then error $ 
+                            printf "no default allowed with '?TYPE': '%s'" s
+                     else [ (o,"") ]
            else error $ printf "failed to parse option '%s' at '%s'" s r
 
