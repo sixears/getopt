@@ -258,12 +258,12 @@ main = do
   test [ is (typeD "String") (pprintQ [| "" |])             "typeDefault String"
        , is (typeD "Int") (pprintQ [| 0 |])                    "typeDefault Int"
        , is (typeD "Float") "-NONE-"                         "typeDefault Float"
-       , is (typeD "Maybe String") (pprintQ [| Nothing |])
-                                                      "typeDefault Maybe String"
-       , is (typeD "Maybe [Int]") (pprintQ [| Nothing |])
-                                                       "typeDefault Maybe [Int]"
-       , is (typeD "Maybe [[Int]]") (pprintQ [| Nothing |])
-                                                     "typeDefault Maybe [[Int]]"
+       , is (typeD "?String") (pprintQ [| Nothing |])
+                                                           "typeDefault ?String"
+       , is (typeD "Maybe Int") "-NONE-"
+                                                         "typeDefault Maybe Int"
+       , is (typeD "?[[Int]]") (pprintQ [| Nothing |])
+                                                          "typeDefault ?[[Int]]"
        , is (typeD "[Int]") (pprintQ [| [] |])               "typeDefault [Int]"
        , is (typeD "[[Int]]") (pprintQ [| [] |])           "typeDefault [[Int]]"
 

@@ -212,7 +212,9 @@ import Console.Getopt.OptDesc   ( OptDesc
            (with <default>); at that point, the use of Maybe doesn't make a
            whole lot of sense (since you would be guaranteed a Just something).
            If you really, really want a Maybe type with a default, use an 
-           explicit Maybe.
+           explicit Maybe.type (which will also mean that you can specify 
+           "Nothing" as an option value; but conversely that you'll also need to 
+           specify "Just x" explitly as an option value).
 
          * [t]
 
