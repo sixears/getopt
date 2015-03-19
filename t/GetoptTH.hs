@@ -148,5 +148,19 @@ main = do
             (Map.fromList [ ("i", "13") , ("s", "\"jim\"") , ("incr", "3") ]
              `Map.union` items)
             []
+    
+    , check "mebbe" [ "2", "3", "--mebbei", "14", "--mebbej", "Nothing" ]
+            0 [ 2, 3 ]
+            (Just opt { _mebbei = Just 14, _mebbej = Nothing })
+            (Map.fromList [ ("mebbei", "Just 14") , ("mebbej", "Nothing") ]
+             `Map.union` items)
+            []
+    
+    , check "mebbe" [ "2", "3", "--mebbej", "Just 2" ]
+            0 [ 2, 3 ]
+            (Just opt { _mebbej = Just 2 })
+            (Map.fromList [ ("mebbej", "Just 2") ] `Map.union` items)
+            []
+    
     ]
     >>= test
