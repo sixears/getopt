@@ -53,9 +53,9 @@ import Control.Lens  ( (^.) )
 -- template-haskell --------------------
 
 import Language.Haskell.TH         ( Dec( SigD )
-                                   , Exp( AppE, ConE, DoE
-                                        , ListE, VarE )
+                                   , Exp( AppE, ConE, DoE , ListE, LitE, VarE )
                                    , ExpQ
+                                   , Lit( StringL )
                                    , Name
                                    , Pat( VarP )
                                    , Pred( ClassP )
@@ -80,8 +80,8 @@ import Fluffy.Language.TH.Record       ( mkLensedRecord, mkLensedRecordDef )
 
 -- this package --------------------------------------------
 
-import Console.Getopt           ( ArgArity(..), HelpOpts(..), Option
-                                , getopts, helpme, mkOpt )
+import Console.Getopt.ArgArity  ( ArgArity(..), liftAA )
+import Console.Getopt           ( HelpOpts(..), Option, getopts, helpme, mkOpt )
 import Console.Getopt.OptDesc   ( OptDesc
                                 , descn, dfltTxt, precordDefFields
                                 , recordFields, dfGetter
@@ -111,8 +111,7 @@ import Console.Getopt.OptDesc   ( OptDesc
 
        main :: IO ()
        main = do
-         (args, opts) <- getoptsx arity "filename"
-                                  (return . (readType \"Int\" :: String -> Int))
+         (args, opts) <- getoptsx (return . (readType \"Int\" :: String -> Int))
          forM_ [ "ARGS: " ++ show args, "OPTS: "  ++ show opts ] putStrLn
          putStrLn $ "s: "    ++ show (opts ^. s)
          putStrLn $ "i: "    ++ show (opts ^. i)
@@ -309,9 +308,9 @@ mkopts getoptName arity argtype optcfgs = do
                                      . (view handle___)) pclv);
         (return $ (Getoptsx string_x incr_x handle_x))
 
-    getoptsx :: (NFData a, Show a) => ArgArity -> String -> (String -> IO a)
-                                   -> IO ([a], Getoptsx)
-    getoptsx = (getopts getoptsx_) ... (t2apply getoptsx_effect)
+    getoptsx :: (NFData a, Show a) => (String -> IO a) -> IO ([a], Getoptsx)
+    getoptsx = (t2apply getoptsx_effect)
+               . (getopts getoptsx_ (ArgSome 1 3) "filename")
 
   -}
 
@@ -356,12 +355,12 @@ mkopts getoptName arity argtype optcfgs = do
           , asgn_mkopts  -- (getoptsx_ ...                        above)
             -- (getoptsx_effect :: Getoptsx__ -> IO Getoptsx
             --  getoptsx_effect pclv = pclv -> do { ... }
-            --  getoptsx :: (NFData a, Show a) => ArgArity -> String
-            --                                 -> (String -> IO a)
+            --  getoptsx :: (NFData a, Show a) => (String -> IO a)
             --                                 -> IO ([a], Getoptsx)
-            --  getoptsx = (getopts getoptsx_) ... (t2apply getoptsx_effect)
+            --  getoptsx = (t2apply getoptsx_effect)
+            --             . (getopts getoptsx_ (ArgSome 1 3) "filename")
             --  above)
-          , mkGetoptTH optdescs getoptName
+          , mkGetoptTH optdescs getoptName arity argtype
           ]
 
 --------------------------------------------------------------------------------
@@ -380,23 +379,24 @@ mkopts getoptName arity argtype optcfgs = do
                                      . (view handle___)) g);
         (return $ (Getoptsx string_x incr_x handle_x))
 
-      getoptsx :: (NFData a, Show a) => ArgArity -> String
-                                     -> (String -> IO a)
+      getoptsx :: (NFData a, Show a) => (String -> IO a)
                                      -> IO ([a], Getoptsx)
 
-      getoptsx = (getopts getoptsx_) ...
-                 (t2apply getoptsx_effect)
+      getoptsx = (t2apply getoptsx_effect)
+                 . (getopts getoptsx_ (ArgSome 1 3) "filename")
       above)
  -}
 
 mkGetoptTH :: [OptDesc] -- ^ options set
            -> String    -- ^ name of fn to generate (getoptsx above)
+           -> ArgArity                         -- ^ arity of arguments
+           -> String                           -- ^ arg type (for help text)
            -> Q [Dec]
 
-mkGetoptTH optdescs getoptName = do
+mkGetoptTH optdescs getoptName arity argtype = do
   typeSig <- mkGetoptTHTypeSig (ov_typename getoptName)
   eff     <- mkEffector optdescs getoptName
-  let getopt_th = mk_getopt_th typeSig getoptName
+  let getopt_th = mk_getopt_th typeSig getoptName arity argtype
   return $ eff ++ getopt_th
 
 
@@ -436,22 +436,24 @@ mk_effector ts nam g = mkSimpleTypedFun ts (mkName nam) [g]
 
 -- | generated getopts-like fn
 --
---   (getoptsx :: (NFData a, Show a) => ArgArity -> String -> (String -> IO a)
---                                   -> IO ([a], Getoptsx)
---
---    getoptsx = (getopts getoptsx_) ... (t2apply getoptsx_effect)
+--   (getoptsx :: (NFData a, Show a) => (String -> IO a) -> IO ([a], Getoptsx)
+--    getoptsx = (t2apply getoptsx_effect)
+--               . (getopts getoptsx_ (ArgSome 1 3) "filename")
 --    above)
 
 mk_getopt_th :: Type    -- ^ type signature of generated fn
              -> String  -- ^ name of fn to generate (getoptsx above)
+             -> ArgArity                         -- ^ arity of arguments
+             -> String                           -- ^ arg type (for help text)
              -> [Dec]
 
-mk_getopt_th sig getoptName =
-  mkSimpleTypedFun sig (mkName getoptName) [] (infix2E lhs (VarE '(...)) rhs)
-    where -- (getopts getoptsx_ above)
-          lhs = AppE (VarE 'getopts) (cfg_name getoptName)
+mk_getopt_th sig getoptName arity argtype =
+  mkSimpleTypedFun sig (mkName getoptName) [] (infix2E lhs (VarE '(.)) rhs)
+    where -- (getopts getoptsx_ (ArgSome 1 3) "filename" above)
+          rhs = mAppE [ VarE 'getopts, cfg_name getoptName
+                      , liftAA arity, (LitE . StringL) argtype ]
           -- (t2apply getoptsx_effect above)
-          rhs = AppE (VarE 't2apply) (effect_name getoptName)
+          lhs = AppE (VarE 't2apply) (effect_name getoptName)
 
 -- mkGetoptTHTypeSig -----------------------------------------------------------
 
@@ -466,10 +468,12 @@ mkGetoptTHTypeSig t = do
   a <- newName "a"
   return .
     ForallT [PlainTV a] [ClassP ''NFData [VarT a], ClassP ''Show [VarT a]] $
-    tsArrows [ ConT ''ArgArity
-             , ConT ''String
-             , tsArrows [ ConT ''String , appTIO(VarT a) ]
-             , appTIO (tupleL [ listOfN a, t ])
+    tsArrows [ -- ConT ''ArgArity
+             -- , ConT ''String
+             -- , 
+             tsArrows [ ConT ''String , appTIO(VarT a) ]
+             , 
+               appTIO (tupleL [ listOfN a, t ])
              ]
 
 -- Typeish ---------------------------------------------------------------------
@@ -519,7 +523,7 @@ cfg_name  = convert . (++ "_")
 concatM :: Monad m => [m [a]] -> m [a]
 concatM = liftM concat . sequence
 
--- mkopts ----------------------------------------------------------------------
+-- mkopt -----------------------------------------------------------------------
 
 mkopt :: OptDesc -> ExpQ
 mkopt optdesc =
@@ -600,11 +604,7 @@ effectBind pclv o = do
   dfg <- dfGetter o
   return (b, BindS (VarP b) (AppE (enactor o) (AppE dfg (VarE pclv))))
 
--- ... -------------------------------------------------------------------------
-
--- | like (.), but for a (first) fn of 3 args rather than 1
-(...) :: (a -> b -> c -> d) -> (d -> e) -> a -> b -> c -> e
-(f ... g) a b c = g (f a b c)
+-- t2apply ---------------------------------------------------------------------
 
 t2apply :: Monad m => (b -> m b') -> m (a, b) -> m (a, b')
 t2apply effect ab = do

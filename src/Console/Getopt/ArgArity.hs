@@ -14,7 +14,7 @@ describe arg count accepted by Getopt
  -}
 
 module Console.Getopt.ArgArity
-  ( ArgArity(..), check_arity, show_arity )
+  ( ArgArity(..), check_arity, liftAA, show_arity )
 where
   
 -- base --------------------------------
@@ -48,19 +48,31 @@ data ArgArity = ArgNone
               | ArgMax Int      -- ^ no more than n args
 
 
-returnE :: Name -> ExpQ
-returnE = return . ConE
+--X returnE :: Name -> ExpQ
+--X returnE = return . ConE
+
+liftAA :: ArgArity -> Exp
+liftAA ArgNone       = ConE 'ArgNone
+liftAA ArgOne        = ConE 'ArgOne
+liftAA (ArgN n)      = AppE (ConE 'ArgN) (intE n)
+liftAA ArgMaybe      = ConE 'ArgMaybe
+liftAA ArgAny        = ConE 'ArgAny
+liftAA ArgMany       = ConE 'ArgMany
+liftAA (ArgSome m n) = mAppE [ConE 'ArgSome, intE m, intE n]
+liftAA (ArgMin m)    = AppE (ConE 'ArgMin) (intE m)
+liftAA (ArgMax m)    = AppE (ConE 'ArgMax) (intE m)
 
 instance Lift ArgArity where
-  lift ArgNone       = returnE 'ArgNone
-  lift ArgOne        = returnE 'ArgOne
-  lift (ArgN n)      = return $ AppE (ConE 'ArgN) (intE n)
-  lift ArgMaybe      = returnE 'ArgMaybe
-  lift ArgAny        = returnE 'ArgAny
-  lift ArgMany       = returnE 'ArgMany
-  lift (ArgSome m n) = return $ mAppE [ConE 'ArgSome, intE m, intE n]
-  lift (ArgMin m)    = return $ AppE (ConE 'ArgMin) (intE m)
-  lift (ArgMax m)    = return $ AppE (ConE 'ArgMax) (intE m)
+  lift = return . liftAA
+--X  lift ArgNone       = returnE 'ArgNone
+--X  lift ArgOne        = returnE 'ArgOne
+--X  lift (ArgN n)      = return $ AppE (ConE 'ArgN) (intE n)
+--X  lift ArgMaybe      = returnE 'ArgMaybe
+--X  lift ArgAny        = returnE 'ArgAny
+--X  lift ArgMany       = returnE 'ArgMany
+--X  lift (ArgSome m n) = return $ mAppE [ConE 'ArgSome, intE m, intE n]
+--X  lift (ArgMin m)    = return $ AppE (ConE 'ArgMin) (intE m)
+--X  lift (ArgMax m)    = return $ AppE (ConE 'ArgMax) (intE m)
 
 -- show_arity ------------------------------------------------------------------
 

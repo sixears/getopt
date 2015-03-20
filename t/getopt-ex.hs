@@ -58,7 +58,7 @@ optCfg = [ mkOpt "s"  [ "string"  ] (setval return string) "string" "String"
          , mkOpt "D"  [ "decrement"  ] (setvalc' int)
                       "decrement" "Decrement int" "Int" "0"
          , mkOpt "h"  [ "handle"  ]
-                 (setvals ((fmap NFHandle) . (`openFile` ReadMode)) handles)
+                 (setvals (fmap NFHandle . (`openFile` ReadMode)) handles)
                  "handle" "Handle" "[Handle]" "[]"
          , mkOpt "b" [ "bool" ] (setvalt bool)
                  (    "the quick brown fox jumped over the lazy dog, then fell "
@@ -78,7 +78,9 @@ optCfg = [ mkOpt "s"  [ "string"  ] (setval return string) "string" "String"
                   "maybe int" "maybe int'" "?Maybe" ""
          , mkOpt "a" [ "alist" ] (setvalAList' "=>"
                                               (const . return . readType "Int")
-                                              (\ x _ _ -> (fmap NFHandle) $ openFile x ReadMode)
+                                              (\ x _ _ -> 
+                                                fmap NFHandle $ 
+                                                  openFile x ReadMode)
                                               alist )
                  "alist int=>fn" "an alist of int to handle" 
                  "[(Int, Handle)]" "[]"

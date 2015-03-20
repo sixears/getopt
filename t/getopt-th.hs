@@ -22,7 +22,6 @@ import Fluffy.Language.TH.Type  ( readType )
 import Console.Getopt    ( ArgArity( ArgSome ), mkOpt )
 import Console.GetoptTH  ( mkopts )
 
-
 --------------------------------------------------------------------------------
 
 --X data Opts = Opts { _string   :: Maybe String
@@ -37,9 +36,6 @@ import Console.GetoptTH  ( mkopts )
 --X   deriving (Show, Eq)
 
 --X $( makeLenses ''Opts )
-
-arity :: ArgArity
-arity = ArgSome 1 3
 
 --X instance Default Opts where
 --Y   def = Opts Nothing 0 [] False Nothing "" [] []
@@ -104,10 +100,7 @@ $( mkopts "getoptsx" (ArgSome 1 3) "filename"
 
 main :: IO ()
 main = do
-  -- XXX is this arity used?  Seems to be redundant with the one to mkopts
-  --     above
-  (args, opts) <- getoptsx arity "filename"
-                           (return . (readType "Int" :: String -> Int))
+  (args, opts) <- getoptsx (return . (readType "Int" :: String -> Int))
   forM_ [ "ARGS: " ++ show args, "OPTS: "  ++ show opts ] putStrLn
   putStrLn $ "s     : " ++ show (opts ^. s)
   putStrLn $ "i     : " ++ show (opts ^. i)

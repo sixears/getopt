@@ -314,7 +314,7 @@ readsPrecOptDesc _ s =
                 else -- we don't allow <dflt> with ?type, as that makes no sense
                      -- and would in practice be ignored by the mechanism
                      if    head (o ^. typename) == '?' 
-                        && (pprintQ $ o ^. dflt) /= pprintQ [| Nothing |]
+                        && pprintQ (o ^. dflt) /= pprintQ [| Nothing |]
                      then error $ 
                             printf "no default allowed with '?TYPE': '%s'" s
                      else [ (o,"") ]
