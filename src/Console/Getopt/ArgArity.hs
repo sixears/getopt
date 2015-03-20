@@ -24,7 +24,7 @@ import Text.Printf  ( printf )
 
 -- template-haskell --------------------
 
-import Language.Haskell.TH         ( Exp( AppE, ConE ), ExpQ, Name )
+import Language.Haskell.TH         ( Exp( AppE, ConE ) )
 import Language.Haskell.TH.Syntax  ( Lift( lift ) )
 
 -- Fluffy ------------------------------
@@ -48,9 +48,6 @@ data ArgArity = ArgNone
               | ArgMax Int      -- ^ no more than n args
 
 
---X returnE :: Name -> ExpQ
---X returnE = return . ConE
-
 liftAA :: ArgArity -> Exp
 liftAA ArgNone       = ConE 'ArgNone
 liftAA ArgOne        = ConE 'ArgOne
@@ -64,15 +61,6 @@ liftAA (ArgMax m)    = AppE (ConE 'ArgMax) (intE m)
 
 instance Lift ArgArity where
   lift = return . liftAA
---X  lift ArgNone       = returnE 'ArgNone
---X  lift ArgOne        = returnE 'ArgOne
---X  lift (ArgN n)      = return $ AppE (ConE 'ArgN) (intE n)
---X  lift ArgMaybe      = returnE 'ArgMaybe
---X  lift ArgAny        = returnE 'ArgAny
---X  lift ArgMany       = returnE 'ArgMany
---X  lift (ArgSome m n) = return $ mAppE [ConE 'ArgSome, intE m, intE n]
---X  lift (ArgMin m)    = return $ AppE (ConE 'ArgMin) (intE m)
---X  lift (ArgMax m)    = return $ AppE (ConE 'ArgMax) (intE m)
 
 -- show_arity ------------------------------------------------------------------
 
