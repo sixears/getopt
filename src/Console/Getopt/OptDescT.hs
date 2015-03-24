@@ -19,7 +19,8 @@ where
 -- base --------------------------------
 
 import Control.Applicative  ( (<*), (<*>), (*>), optional )
-import Data.Char            ( isAlphaNum, isUpper )
+import Control.Monad        ( msum )
+import Data.Char            ( isAlphaNum, isDigit, isUpper )
 import Data.Functor         ( (<$>) )
 import Data.List            ( intercalate )
 import Data.Maybe           ( fromMaybe )
@@ -31,7 +32,7 @@ import Data.Default  ( Default( def ) )
 
 -- lenses ------------------------------
 
-import Control.Lens  ( (^.), makeLenses, set )
+import Control.Lens  ( (^.), makeLenses, set, view )
 
 -- regex-applicative -------------------
 
@@ -45,9 +46,10 @@ import Language.Haskell.TH.Syntax  ( Exp( AppE, LitE ), Lit( StringL ) )
 
 -- fluffy --------------------------------------------------
 
-import Fluffy.Language.TH  ( pprintQ )
+import Fluffy.Data.List         ( tr1 )
+import Fluffy.Language.TH       ( pprintQ )
 import Fluffy.Language.TH.Type  ( readTS )
-import Fluffy.Text.Regex   ( reFold )
+import Fluffy.Text.Regex        ( reFold )
 
 -- this package --------------------------------------------
 
@@ -263,20 +265,25 @@ readsPrecOptDesc _ s =
                           , pOptSumm
                           , pOptDescn ] s
       identifier :: RE Char [Char]
-      identifier =  some $ psym (\c -> isAlphaNum c || c == '_')
+      -- we trap the potential leading '-' in checking later on, to give a
+      -- more explicit error msg
+      identifier =  some $ psym (\c -> isAlphaNum c || c == '-')
 
       identifiers :: RE Char [String]
       identifiers =  (:) <$> identifier <*> many (sym '|' *> identifier)
 
       idnames :: [String] -> OptDesc -> OptDesc
-      -- set lensname to first long option name by default
-      idnames ss = set lensname (head ss) . set names ss
+      -- set lensname to first option name by default
+      idnames ss = set lensname (tr1 '-' '_' $ head ss) . set names ss
 
       pIdNames :: RE Char (OptDesc -> OptDesc)
       pIdNames = idnames <$> identifiers
 
+      lensident :: RE Char [Char]
+      lensident =  (many $ psym (\c -> isAlphaNum c || c == '_'))
+
       lensnm :: RE Char String
-      lensnm =  sym '>' *> identifier
+      lensnm =  sym '>' *> lensident
 
       pLensName :: RE Char (OptDesc -> OptDesc)
       pLensName =  set lensname <$> lensnm
@@ -302,21 +309,65 @@ readsPrecOptDesc _ s =
       pOptSumm :: RE Char (OptDesc -> OptDesc)
       pOptSumm =  set summary <$> optsumm
 
-  in if null $ o ^. names
-      then error "no option name defined"
-      -- returning [ (o,r) ] with a non-null r will cause
-      -- a 'Prelude.read: no parse' error.  We can give a
-      -- better error msg
-      else if null r
-           then if isUpper $ head (o ^. lensname)
-                then error $ printf (    "lens '%s' may not begin with an "
-                                      ++ "upper-case letter") (o ^. lensname)
-                else -- we don't allow <dflt> with ?type, as that makes no sense
-                     -- and would in practice be ignored by the mechanism
-                     if    head (o ^. typename) == '?' 
-                        && pprintQ (o ^. dflt) /= pprintQ [| Nothing |]
-                     then error $ 
-                            printf "no default allowed with '?TYPE': '%s'" s
-                     else [ (o,"") ]
-           else error $ printf "failed to parse option '%s' at '%s'" s r
+      -- take a predicate and a string error text, return the error text
+      -- if the predicate holds true on the supplied arg
+      mkM p errtxt = \ x -> if p x then Just (errtxt x) else Nothing
 
+      -- check that the option names list isn't null
+      check_names_defined =
+        mkM (null . view names) (const "no option name defined")
+
+      -- check that no option names lead with a hyphen
+      check_names_no_leading_hyphen =
+        mkM (not . null . (filter $ (== '-') . head) . view names)
+            (\ x -> printf "option name '%s' may not begin with a hyphen"
+                           (head $ (filter $ (== '-') . head) (x ^. names))
+            )
+
+      -- check that the name of the lens doesn't begin with an upper-case letter
+      check_lens_defined :: OptDesc -> Maybe String
+      check_lens_defined =
+        mkM (null . view lensname)
+            (printf "lensname '%s' must not be empty" . view lensname)
+
+      -- check that the name of the lens doesn't begin with an upper-case letter
+      check_lens_no_leading_upcase :: OptDesc -> Maybe String
+      check_lens_no_leading_upcase =
+        mkM (isUpper . head . view lensname)
+            (printf "lens '%s' may not begin with an upper-case letter"
+             . view lensname)
+
+      -- check that the name of the lens doesn't begin with a digit
+      check_lens_no_leading_digit :: OptDesc -> Maybe String
+      check_lens_no_leading_digit =
+        mkM (isDigit . head . view lensname)
+            (printf "lens '%s' may not begin with a digit" . view lensname)
+
+      -- check that the name of the lens doesn't begin with an underscore
+      check_lens_no_leading_underscore :: OptDesc -> Maybe String
+      check_lens_no_leading_underscore =
+        mkM ((== '_') . head . view lensname)
+            (printf "lens '%s' may not begin with an underscore"
+             . view lensname)
+
+      -- disallow the use of a default value with a '?' type
+      check_type_no_default_on_qmark =
+        mkM (\ x ->    ((== '?') . head . (view typename)) x
+                    && pprintQ (x ^. dflt) /= pprintQ [| Nothing |])
+            (\ x -> printf "no default allowed with '?TYPE': '%s' (%s)"
+                           s (x ^. typename))
+
+      -- make sure that there's nothing left to parse
+      check_no_remaining_text =
+        mkM (const $ (not . null) r)
+            (const $ printf "failed to parse option '%s' at '%s'" s r)
+
+  in maybe [(o,"")] error $ msum $ fmap ($ o) [ check_no_remaining_text
+                                              , check_names_defined
+                                              , check_names_no_leading_hyphen
+                                              , check_lens_defined
+                                              , check_lens_no_leading_digit
+                                              , check_lens_no_leading_upcase
+                                              , check_lens_no_leading_underscore
+                                              , check_type_no_default_on_qmark
+                                              ]

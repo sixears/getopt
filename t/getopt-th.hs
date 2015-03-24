@@ -47,7 +47,7 @@ import Console.GetoptTH  ( mkopts )
 $( mkopts "getoptsx" (ArgSome 1 3) "filename"
           [ "s|string::String#string summary"
           , "i|int::Int<4>#integer summary\ndefault 4"
-          , "mebbei|I::?Int#maybe integer summary\no default"
+          , "maybe-i|I::?Int#maybe integer summary\no default"
           , "mebbej|J::Maybe Int<Just 5>#maybe integer summary\ndefault just 5"
 --          , "mebbes|S::?String#maybe string summary\nno default"
           , "incr|C::incr#increment summary\nincrement int longhelp"
@@ -104,7 +104,7 @@ main = do
   forM_ [ "ARGS: " ++ show args, "OPTS: "  ++ show opts ] putStrLn
   putStrLn $ "s     : " ++ show (opts ^. s)
   putStrLn $ "i     : " ++ show (opts ^. i)
-  putStrLn $ "mebbei: " ++ show (opts ^. mebbei)
+  putStrLn $ "mebbei: " ++ show (opts ^. maybe_i)
   putStrLn $ "mebbej: " ++ show (opts ^. mebbej)
   putStrLn $ "incr  : " ++ show (opts ^. incr)
   putStrLn $ "decr  : " ++ show (opts ^. decr)

@@ -188,8 +188,8 @@ main = do
 
   -- p5 --------------------------------
 
-  let p5 = read "int|i::Int<0><13>#myint\nlongdesc" :: OptDesc
-      names_p5    = is (p5 ^. names) [ "int", "i" ]                   "names p5"
+  let p5 = read "int|i|int-opt::Int<0><13>#myint\nlongdesc" :: OptDesc
+      names_p5    = is (p5 ^. names) [ "int", "i", "int-opt" ]        "names p5"
       lensname_p5 = is (p5 ^. lensname) "int"                      "lensname p5"
       type_p5     = is (p5 ^. typename) "Int"                      "typename p5"
 
@@ -217,8 +217,7 @@ main = do
 
   let err_p7 =
         is (show (fromLeft p7))
-           "failed to parse option 'z|y|xx>www::Double<1.1>!' at '!'"
-                                                                        "err p7"
+           "failed to parse option 'z|y|xx>www::Double<1.1>!' at '!'"   "err p7"
 
   -- p8 --------------------------------
 
@@ -226,9 +225,42 @@ main = do
       <- try $ evaluate (read "Z|y|xx::Double<1.1>" :: OptDesc)
 
   let err_p8 =
-        is (show (fromLeft p8))
-           "lens 'Z' may not begin with an upper-case letter"
-                                                                        "err p8"
+        is (show p8)
+           "Left lens 'Z' may not begin with an upper-case letter"      "err p8"
+
+  -- p10 -------------------------------
+
+  p10 :: Either SomeException OptDesc
+      <- try $ evaluate (read "Z|y|xx>_foo::Double<1.1>" :: OptDesc)
+
+  let err_p10 =
+        is (show p10)
+           "Left lens '_foo' may not begin with an underscore"         "err p10"
+
+  -- p11 -------------------------------
+
+  p11 :: Either SomeException OptDesc
+      <- try $ evaluate (read "z|-y|xx::Double<1.1>" :: OptDesc)
+
+  let err_p11 =
+        is (show p11)
+           "Left option name '-y' may not begin with a hyphen"         "err p11"
+
+  -- p12 -------------------------------
+
+  let p12 = read "int-opt|i::Int<0><13>#myint\nlongdesc" :: OptDesc
+      names_p12    = is (p12 ^. names) [ "int-opt", "i" ]            "names p12"
+      lensname_p12 = is (p12 ^. lensname) "int_opt"               "lensname p12"
+      type_p12     = is (p12 ^. typename) "Int"                   "typename p12"
+
+  -- p13 -------------------------------
+
+  p13 :: Either SomeException OptDesc
+      <- try $ evaluate (read "0|y|xx::Double<1.1>" :: OptDesc)
+
+  let err_p13 =
+        is (show p13)
+           "Left lens '0' may not begin with a digit"             "err p13"
 
   -- p9 --------------------------------
 
@@ -293,6 +325,18 @@ main = do
        -- name
        , err_p8
 
+       -- get a meaningful parse error for underscore on lens name
+       -- name
+       , err_p10
+
+       -- get a meaningful parse error for leading hyphen on opt name
+       -- name
+       , err_p11
+
+       -- get a meaningful parse error for leading digit on lens name
+       -- name
+       , err_p13
+
        , show_p3
        , dflt_p3
        , dscn_p2
@@ -321,6 +365,10 @@ main = do
        , strt_p9
        , summ_p9
        , dscn_p9
+
+       , names_p12
+       , lensname_p12
+       , type_p12
 
        -------------------------------------------------------------------------
 

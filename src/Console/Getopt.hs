@@ -161,19 +161,13 @@ module Console.Getopt
   )
 where
 
--- option invocation names should accept '-' not '_'.  Lensname should tr/-/_/.
---   starting with '-' or numbers should be illegal (numbers because you can't
---   have functions starting with numbers)
--- add tests for
---   * lensname beginning with _
---   * lensname defaulted from optname, with - replaced by _
---   * lensname defaulted from optname, with leading digit preceded by '_'
--- clean build from scratch
+-- test for argument (not option) called '-'; test for effect of '--'
 -- add tests to T/Getopt.hs / getopt-ex for setvalm{,'}; improve doc for
 --   setvalm{,'}
 -- add tests that check that an option with no default causes a throw at option-
 --   parsing time if the user doesn't supply an option; test this for filero
 --   when used without a default value
+-- clean build from scratch
 -- mandatory option; leading '!'; causes error if this option isn't invoked.
 --   particularly required for, e.g., String, which has a natural default and so
 --   wouldn't get the benefit of default-less checking.  Or should we use
@@ -200,6 +194,7 @@ where
 -- TH maybe type that handles defaulted value (provides maybe fn to access lens)
 --   that is, lens is of type Maybe b, but client accessor uses maybe dflt id
 --   to be an accessor of type b
+-- complete converting example options in getopt-th.hs
 
 {-
 
