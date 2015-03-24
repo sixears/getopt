@@ -93,7 +93,7 @@ module Console.Getopt
          the lens package makes it all much simpler.
 
          @
-         type Lens' s a = 
+         type Lens' s a =
            &#8704; (f :: * -> *) . Functor f => (a -> f a) -> s -> f s
          @
 
@@ -182,7 +182,7 @@ where
 --   the same option slot
 -- common setInt, setInts, setStrs, etc., for common types; int float string bool
 --   (simple turn-it-on) Bool ( True|False) fnexists fnopen fncouldwrite
---   dir
+--   dirread dirwrite
 -- maps using x=y (or some other delimiter, or two arguments)
 --   two versions; one that blows up on repeated keys, one that produces
 --     -- current version sees current set of keys&values; so setval wrapper fns
@@ -191,9 +191,6 @@ where
 -- ability to mix TH setup with standard stuff (so we can add complex options on
 --   later)
 -- remove debug
--- TH maybe type that handles defaulted value (provides maybe fn to access lens)
---   that is, lens is of type Maybe b, but client accessor uses maybe dflt id
---   to be an accessor of type b
 -- complete converting example options in getopt-th.hs
 
 {-
@@ -1196,13 +1193,17 @@ parse_options state =
                  then parse_opt state_e opt
                  else parse_options $ state_e & errs ~:~ err_combine opt
 
+      add_arg a st = parse_options (tl1 st & args ~:~ a)
 
   in case state ^. strs of
        -- no more strings to parse
        []                 -> return state
 
-       -- '--' terminates parsing; all else are args
+       -- "--" terminates parsing; all else are args
        "--" : as          -> return $ (state & strs .~ []) & args =++ reverse as
+
+       -- "-" is just a plain arg, not an option
+       "-" : _           -> add_arg "-" state
 
        -- '--foo'
        opt@('-':'-':_) :_ -> parse_opt (tl1 state) opt
@@ -1211,7 +1212,7 @@ parse_options state =
        opt@('-' : _) : _  -> parse_single_char_opt (tl1 state) opt
 
        -- plain argument
-       s : _              -> parse_options (tl1 state & args ~:~ s)
+       s : _              -> add_arg s state
 
 -- ignoreFirst -----------------------------------------------------------------
 

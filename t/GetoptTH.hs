@@ -38,13 +38,13 @@ import Fluffy.Data.String  ( stripEnd )
 
 --------------------------------------------------------------------------------
 
-data Getoptsx = Getoptsx { _s      :: String
-                         , _i      :: Int
-                         , _mebbei :: Maybe Int
-                         , _mebbej :: Maybe Int
-                         , _incr   :: Int
-                         , _decr   :: Int
-                         , _handle :: HandleR
+data Getoptsx = Getoptsx { _s       :: String
+                         , _i       :: Int
+                         , _maybe_i :: Maybe Int
+                         , _mebbej  :: Maybe Int
+                         , _incr    :: Int
+                         , _decr    :: Int
+                         , _handle  :: HandleR
                          }
   deriving (Eq, Show, Read)
 
@@ -114,7 +114,7 @@ main = do
       check        = check_invocation getopt_th
 
   let opt   = Getoptsx { _s = "", _i = 4, _incr = 0, _decr = 6
-                       , _mebbei = Nothing, _mebbej = Just 5
+                       , _maybe_i = Nothing, _mebbej = Just 5
                        , _handle = HandleR "/etc/motd"
                        }
       items = Map.fromList [ ("i", "4"), ("s", "\"\"")
@@ -149,9 +149,9 @@ main = do
              `Map.union` items)
             []
     
-    , check "mebbe" [ "2", "3", "--mebbei", "14", "--mebbej", "Nothing" ]
+    , check "mebbe" [ "2", "3", "--maybe-i", "14", "--mebbej", "Nothing" ]
             0 [ 2, 3 ]
-            (Just opt { _mebbei = Just 14, _mebbej = Nothing })
+            (Just opt { _maybe_i = Just 14, _mebbej = Nothing })
             (Map.fromList [ ("mebbei", "Just 14") , ("mebbej", "Nothing") ]
              `Map.union` items)
             []

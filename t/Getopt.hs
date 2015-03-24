@@ -230,6 +230,7 @@ main = do
 
   (args3, opts3, errs3, help3) <- getOptions def optCfg
                                              [ "one"
+                                             , "-"
                                              , "--foo", "floo"
                                              , "--bob=7"
                                              , "two"
@@ -272,15 +273,17 @@ main = do
                                    , "first radio voice of James"
                                    , "Bond"
                                    ])
-                                                              "help: --help=b"
-       , is errs2           []                                "help: no errs"
+                                                                "help: --help=b"
+       , is errs2           []                                   "help: no errs"
 
-       , is args3  [ "one", "two", "False", "--three", "--foo" ]    "opts: args"
+       , is args3  [ "one", "-", "two", "False", "--three", "--foo" ] 
+                                                                    "opts: args"
        -- split out the bar,alist parts because they need to be 'show'n to be
        -- compared
        , is opts3  { _bar = [], _alist = [] }
             def { _foo = Just "floo", _bob = 5, _bar = [], _quux = True
-                , _sett = True, _tett = Just True, _uett = False, _corn = "barley"
+                , _sett = True, _tett = Just True
+                , _uett = False, _corn = "barley"
                 , _list = [3,2,5,7], _obool = Just False, _obool2 = Just True
                 }
            "opts"
