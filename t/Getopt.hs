@@ -31,7 +31,8 @@ import Fluffy.Language.TH.Type  ( readType )
 
 import Console.Getopt  ( NFHandle( NFHandle ), Option
                        , getOptions, helpme', mkOpt, mkOptsB
-                       , setvalOW, setvalm_, setval, setvalc, setvalc'
+                       , setvalOW, setval, setvalc, setvalc'
+                       , setvalm, setvalm', setvalm_
                        , setvals, setvals', setvalt, setvalf
                        , setvalAList'
                        )
@@ -49,13 +50,17 @@ data Opts = Opts { _foo    :: Maybe String
                  , _alist  :: [(Int, NFHandle)]
                  , _obool  :: Maybe Bool
                  , _obool2 :: Maybe Bool
+                 , _valm0  :: Int
+                 , _valm1  :: Int
+                 , _valm2  :: Maybe Int
                  }
   deriving (Show, Eq)
 
 $( makeLenses ''Opts )
 
 instance Default Opts where
-  def = Opts Nothing 0 [] False False Nothing True "" [] [] Nothing Nothing
+  def = Opts Nothing 0 [] False False Nothing True "" [] [] Nothing Nothing 
+             7 6 Nothing
 
 optCfg :: [Option Opts]
 optCfg = [ mkOpt "fF" [ "foo", "fop", "fob"  ] (setval return foo)
@@ -73,14 +78,14 @@ optCfg = [ mkOpt "fF" [ "foo", "fop", "fob"  ] (setval return foo)
          , mkOpt "qQu" [ "quux" ] (setvalt quux)
                 "quuxoffalot" "come back here and I'll bite your ankles!" "" ""
          , mkOpt "s" [] (setvalt sett) "sett" "this is a setting option" "" ""
-         ] 
+         ]
          ++ mkOptsB "t" ["tett"] tett
                     "tett" "this is another setting option" "" "" ++
-         [ mkOpt "x" [] (setvalf uett) 
+         [ mkOpt "x" [] (setvalf uett)
                  "uett" "another setting option; def True" "" ""
          , mkOpt "c" [] (setvalOW return corn) "corn" "corn on the cob" "" ""
          , mkOpt [] [ "help" ] helpme'
-                 "helpsicle"   "help me, Obi-Wan Kenobi, you're my only hope" 
+                 "helpsicle"   "help me, Obi-Wan Kenobi, you're my only hope"
                  "" ""
          , mkOpt "l" [] (setvals (return . readType "Int") list)
                  "list" "a list of integers" "" ""
@@ -88,13 +93,20 @@ optCfg = [ mkOpt "fF" [ "foo", "fop", "fob"  ] (setval return foo)
                  "clist" "a comma-separated list of integers" "" ""
          , mkOpt "A" [ "alist" ] (setvalAList' "=>"
                                               (const . return . readType "Int")
-                                              (\ x _ _ -> fmap NFHandle $ openFile x ReadMode)
+                                              (\ x _ _ -> fmap NFHandle $ 
+                                                            openFile x ReadMode)
                                               alist )
                  "alist" "an alist of int to handle" "" ""
          , mkOpt "m" [ "optval" ] (setvalm_ obool)
                  "optval" "an optionally-valued option" "" ""
          , mkOpt "M" [ "optval2" ] (setvalm_ obool2)
                  "optval" "an optionally-valued option" "" ""
+         , mkOpt "y" [] (setvalm' (\s o -> return $ maybe (2+o) read s) valm0)
+                 "valm0" "" "" ""
+         , mkOpt "Y" [] (setvalm' (\s o -> return $ maybe (2+o) read s) valm1)
+                 "valm1" "" "" ""
+         , mkOpt "o" [] (setvalm (return . maybe 27 read) valm2)
+                 "valm2" "" "" ""
          , mkOpt "d" [] (setvalc' bob)
                  "decrement" "decrement an integer" "" ""
          , mkOpt "D" [] (setvalc bob)
@@ -136,6 +148,7 @@ main = do
                  , "blobbie"
                  , "-l", "7.1"
                  , "-C", "3,three"
+                 , "-o=33", "-o"
                  , "--alist=7", "/etc/motd"
                  , "-A=8=>/etc/passw"
                  , "-A=eight=>/etc/passwd"
@@ -145,7 +158,7 @@ main = do
                  , "-t", "--no-tett"
                  , "--foo"
                  ]
-      err1_exp = [    "failed to parse value 'lisa' for option 'F':\n" 
+      err1_exp = [    "failed to parse value 'lisa' for option 'F':\n"
                    ++ "  option already set to '\"bart\"'"
                  ,  "failed to parse value '/etc/mot' for option 'bar':\n"
                    ++ "  /etc/mot: openFile: does not exist "
@@ -161,6 +174,8 @@ main = do
                    ++ "  failed to parse '7.1' as Int"
                  ,    "failed to parse value '3,three' for option 'C':\n"
                    ++ "  failed to parse 'three' as Int"
+                 ,    "failed to enact option 'o':\n"
+                   ++ "  option already set to '33'"
                  , "option 'alist' assignment '7' is missing delimiter '=>'"
                  ,    "failed to parse value '/etc/passw' for option "
                    ++ "'A' key '8':\n  /etc/passw: openFile: does not exist"
@@ -175,7 +190,7 @@ main = do
                    ++ " delimiter '=>'"
                  ,    "failed to parse value 'Maybe' for option 'optval':\n"
                    ++ "  failed to parse 'Maybe' as a Bool"
-                 ,    "failed to enact option 'no-tett':\n" 
+                 ,    "failed to enact option 'no-tett':\n"
                    ++ "  option already set to 'True'"
                  , "option 'foo' requires a value"
                  ]
@@ -196,6 +211,9 @@ main = do
                   , ("-A|--alist",      "alist")
                   , ("-m|--optval",     "optval")
                   , ("-M|--optval2",    "optval")
+                  , ("-y"             , "valm0")
+                  , ("-Y"             , "valm1")
+                  , ("-o"             , "valm2")
                   , ("-d"             , "decrement")
                   , ("-D"             , "increment")
                   ]
@@ -243,6 +261,7 @@ main = do
                                              , "-l", "2"
                                              , "-sx"
                                              , "-C", "5,7"
+                                             , "-y", "21", "-Y=23", "-o"
                                              , "-A", "7", "/etc/group"
                                              , "--alist", "8=>/etc/passwd"
                                              , "--alist=9=>/etc/passwd"
@@ -259,7 +278,8 @@ main = do
             :: IO (Either SomeException ([String], Opts, [String], [String]))
 
   test [ like  args1  [ "blobbie", "/etc/motd" ]           "errs: args"
-       , is    opts1  def { _foo = Just "bart", _bob = 8, _tett = Just True } 
+       , is    opts1  def { _foo = Just "bart", _bob = 8, _tett = Just True 
+                          , _valm2 = Just 33 }
                                                            "errs: no opts"
        , like  help1  []                                   "errs: no helps"
        , like  errs1  err1_exp                             "errs: errs"
@@ -276,7 +296,7 @@ main = do
                                                                 "help: --help=b"
        , is errs2           []                                   "help: no errs"
 
-       , is args3  [ "one", "-", "two", "False", "--three", "--foo" ] 
+       , is args3  [ "one", "-", "two", "21", "False", "--three", "--foo" ]
                                                                     "opts: args"
        -- split out the bar,alist parts because they need to be 'show'n to be
        -- compared
@@ -284,10 +304,11 @@ main = do
             def { _foo = Just "floo", _bob = 5, _bar = [], _quux = True
                 , _sett = True, _tett = Just True
                 , _uett = False, _corn = "barley"
+                , _valm0 = 9, _valm1 = 23, _valm2 = Just 27
                 , _list = [3,2,5,7], _obool = Just False, _obool2 = Just True
                 }
-           "opts"
-       , is (show $ opts3 ^. bar)   "[{handle: /etc/motd},{handle: /etc/group}]"  
+                                                                          "opts"
+       , is (show $ opts3 ^. bar)   "[{handle: /etc/motd},{handle: /etc/group}]"
                                     "opts: bar /etc/motd"
        , is (show $ opts3 ^. alist)
             (intercalate "," [ "[(7,{handle: /etc/group})"

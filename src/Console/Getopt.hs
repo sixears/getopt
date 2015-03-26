@@ -153,17 +153,14 @@ module Console.Getopt
   , helpme, helpme', mkOpt, mkOptsB
 
   -- * setval* Variants
-  , setvalOW, setval, setvalc, setvalc', setvalm, setvalm_, setvals
-  , setvals', setvalt, setvalf, setval', setvalAList, setvalAList'
+  , setvalOW, setval, setvalc, setvalc', setvalm, setvalm', setvalm_, setvalm__
+  , setvals, setvals', setvalt, setvalf, setval', setvalAList, setvalAList'
 
   -- * useful extras
   , NFHandle( NFHandle ), progName, unhandle
   )
 where
 
--- test for argument (not option) called '-'; test for effect of '--'
--- add tests to T/Getopt.hs / getopt-ex for setvalm{,'}; improve doc for
---   setvalm{,'}
 -- add tests that check that an option with no default causes a throw at option-
 --   parsing time if the user doesn't supply an option; test this for filero
 --   when used without a default value
@@ -217,9 +214,13 @@ setValue'          -- optname, mb_optval, args, old_value
  |  |  |
  |  |  +-setvals'  -- :: [b] ; appends each new value; split on delimiter;
  |  |                          String, String -> IO b
- |  +-setvalm      -- :: b ; allows -o=foo but not -o foo; overwrites
- |    |                      Maybe String -> b -> IO b
- |    +-setvalm_   -- :: Bool ; specialization of setvalm for Bool values
+ |  +-setvalm'     -- :: b ; take an optionally-specified value (-o=value)
+ |    |                      also sees the prior lensed-to value
+ |    +-setvalm    -- :: b ; call at most once
+ |    |                      allows -o=foo but not -o foo; sets target to Just x
+ |    +-setvalm_   -- :: Bool ; specialization of setvalm for Bool values (to 
+ |    |                         take true/1/yes or no/0/false
+ |    + setvalm__  -- :: Bool ; logical inversion of setvalm_
  |
  +-setvalAList'    -- :: [(k,v)] ; looks for keys & values, appends to list
     |                              takes a string delimiter to split k/v
@@ -767,8 +768,11 @@ setval' f = setValue ValMandatory (ignoreFirst f')
 
 -- setvalm ---------------------------------------------------------------------
 
--- | setvalm'; subsequent calls to this option will fail (specifically, if the
---   target of the Lens has a non-Nothing value, the call will fail)
+-- | Like setvalm'; but subsequent calls to this option will fail.
+--   Specifically, if the current lensed value is non-@Nothing@, the call will
+--   fail (before the parser is invoked); it is up to the parser to return a
+--   Maybe value as appropriate (so in common cases, the parser would always
+--   return @Just x@, even if the input @Maybe String@ is @Nothing@).
 
 setvalm :: (NFData b, Show b)
         => (Maybe String -> IO b)
@@ -779,9 +783,10 @@ setvalm f = setvalm' (\s oldv -> case oldv of
                                    Just o  -> error $ err_already_set (show o)
                      )
 
--- | Set value, will handle a specified value as -o=value, but not -o value.
---   Thus a missing value (-o) (Nothing as first arg to the parser) will
---   generate either a default value or an error.
+-- | Set value, taking an optionally-specified value from the command-line -
+--   will handle a value specified as @-o=value@, but @-o value@ will be treated
+--   as -o @Nothing@, with @value@ being a further option or argument.  The
+--   parser is given the current lensed-to value as its second argument.
 
 setvalm' :: (NFData b)
          => (Maybe String -> b -> IO b) -- ^ arg value parser (b is prior value)
@@ -803,8 +808,8 @@ parseb s = case lc s of
              "0"     -> False
              _       -> error $    "failed to parse '" ++ s ++ "' as a Bool"
 
--- | version of setvalm for Bool values; parses true/yes/1 for true, false/no/0
---   for no defaults to True if no value passed
+-- | specialization of setvalm for Bool values; parses true/yes/1 for true, 
+--   false/no/0 for no, defaults to True if no value passed
 
 setvalm_ :: Lens' o (Maybe Bool) -> OptParse o
 setvalm_  =  setvalm (\ m -> case m of

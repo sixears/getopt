@@ -25,6 +25,7 @@ import Console.Getopt    ( ArgArity( ArgSome ), HelpOpts(..)
                          , NFHandle( NFHandle ), Option
                          , getopts, helpme, mkOpt, mkOptsB
                          , setvalOW, setval, setvalc, setvalc', setvals
+                         , setvalm, setvalm_, setvalm'
                          , setvals', setvalt, setvalAList'
                          )
 --------------------------------------------------------------------------------
@@ -37,6 +38,9 @@ data Opts = Opts { _string   :: Maybe String
                  , _list     :: [Int]
                  , _alist    :: [(Int, NFHandle)]
                  , _mebbei   :: Maybe Int
+                 , _obool    :: Maybe Bool
+                 , _valm0    :: Int
+                 , _valm2    :: Maybe Int
                  }
   deriving (Show, Eq)
 
@@ -46,7 +50,7 @@ arity :: ArgArity
 arity = ArgSome 1 3
 
 instance Default Opts where
-  def = Opts Nothing 0 [] False Nothing [] [] Nothing
+  def = Opts Nothing 0 [] False Nothing [] [] Nothing Nothing 1 Nothing
 
 optCfg :: [Option Opts]
 optCfg = [ mkOpt "s"  [ "string"  ] (setval return string) "string" "String" 
@@ -74,7 +78,7 @@ optCfg = [ mkOpt "s"  [ "string"  ] (setval return string) "string" "String"
                  "int list"  "[Int]" "[Int]" "[]"
          , mkOpt "c" [] (setvals' "," (return . readType "Int") list)
                  "comma-ilist" "a comma-separated list of integers" "[Int]" "[]"
-         , mkOpt "m" [] (setval (return . readType "Int") mebbei) 
+         , mkOpt "n" [] (setval (return . readType "Int") mebbei) 
                   "maybe int" "maybe int'" "?Maybe" ""
          , mkOpt "a" [ "alist" ] (setvalAList' "=>"
                                               (const . return . readType "Int")
@@ -84,6 +88,12 @@ optCfg = [ mkOpt "s"  [ "string"  ] (setval return string) "string" "String"
                                               alist )
                  "alist int=>fn" "an alist of int to handle" 
                  "[(Int, Handle)]" "[]"
+         , mkOpt "m" [ "optval" ] (setvalm_ obool)
+                 "obool" "an optionally-valued option" "" ""
+         , mkOpt "y" [] (setvalm' (\s o -> return $ maybe (2+o) read s) valm0)
+                 "valm0" "" "" ""
+         , mkOpt "o" [] (setvalm (return . maybe 27 read) valm2)
+                 "valm2" "" "" ""
          , mkOpt ""  [ "help" ] 
                  (helpme def { arg_arity = arity, arg_type = "fn" })
                  "this help"  "Help" "" ""
