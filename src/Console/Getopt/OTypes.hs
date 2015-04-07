@@ -24,7 +24,6 @@ where
 -- base --------------------------------
 
 import Data.Char   ( isUpper )
--- import Debug.Trace ( traceShow )
 import System.IO   ( Handle, IOMode( ReadMode ), openFile )
 
 -- data-default ------------------------
@@ -43,13 +42,14 @@ import Language.Haskell.TH  ( Exp ( AppE, ConE, LitE, SigE, VarE )
 -- fluffy ------------------------------
 
 import Fluffy.Data.List         ( splitOn )
-import Fluffy.Language.TH       ( stringE )
+import Fluffy.Language.TH       ( composeE, stringE )
 import Fluffy.Language.TH.Type  ( readType )
 
 -- this package --------------------------------------------
 
-import Console.Getopt           ( setval, setvalc, setvalc', setvals )
-import Console.Getopt.ParseOpt  ( parseAs )
+import Console.Getopt                   ( setval, setvalc, setvalc', setvals )
+import Console.Getopt.CmdlineParseable  ( enactOpt )
+import Console.Getopt.ParseOpt          ( parseAs )
 
 --------------------------------------------------------------------------------
 
@@ -183,7 +183,6 @@ oTypes_ "filero" = def { pclvTypename_   = "Maybe FilePath"
                        , parser_         = VarE 'id
                        }
 
--- oTypes_ ('M':'a':'y':'b':'e':' ':t) = oTypes_ ('?' : t)
 oTypes_ ('?':t) = def { pclvTypename_   = "Maybe " ++ t
                       , optionTypename_ = '?' : t
                       , parser_         = readParser t
@@ -200,6 +199,18 @@ oTypes_ tt@('[':t) | last t == ']' =
                       }
 
 oTypes_ [] = error "empty typestring"
+
+-- IO types (simple,  value as String)
+oTypes_ ('*' : t@(h :_)) | isUpper h =
+                 def { pclvTypename_   = "Maybe String"
+                     , optionTypename_ = t
+                     , setter_         = setval_as t
+                     , enactor_        = VarE 'enactOpt
+                     , parser_         = VarE 'id
+                     , default_        = Nothing -- Just . LitE $ StringL ""
+                     }
+
+                | otherwise = error $ "no such option type: '" ++ t ++ "'"
 
 oTypes_ t@(h:_) | isUpper h =
                  def { pclvTypename_   = "Maybe " ++ t
@@ -286,6 +297,7 @@ parser = parser_ . oTypes
 
 enactor :: String -> Exp
 enactor = enactor_ . oTypes
+-- enactor _ = VarE 'enactOpt
 
 -- startIsDefault --------------------------------------------------------------
 

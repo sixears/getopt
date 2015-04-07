@@ -2,8 +2,8 @@
 
 -- base --------------------------------
 
-import Data.List           ( isInfixOf, partition )
-import System.Exit         ( ExitCode(..) )
+import Data.List    ( isInfixOf, partition )
+import System.Exit  ( ExitCode(..) )
 
 -- containers --------------------------
 
@@ -38,6 +38,22 @@ import Fluffy.Data.String  ( stripEnd )
 
 --------------------------------------------------------------------------------
 
+readHandle :: (String -> a) -> String -> [(a, String)]
+readHandle ctor s = case span (/= ' ') (dropWhile (== ' ') s) of
+                      ("{handle:", h)  ->
+                        -- of course this will misbehave for any files with '}'
+                        -- in the name
+                        let (fn,rest) = span (/= '}') (tail h) -- head h == ' '
+                         in [(ctor fn, tail rest)]
+                      _ -> error $ "no Handle parse of: '" ++ s ++ "'"
+
+
+newtype FileRO = FRO { getHandle :: String }
+  deriving (Show, Eq)
+
+instance Read FileRO where
+  readsPrec _ s = readHandle FRO (drop 5 (dropWhile (== ' ') s))
+
 data Getoptsx = Getoptsx { _s       :: String
                          , _i       :: Int
                          , _maybe_i :: Maybe Int
@@ -45,6 +61,7 @@ data Getoptsx = Getoptsx { _s       :: String
                          , _incr    :: Int
                          , _decr    :: Int
                          , _handle  :: HandleR
+                         , _filero  :: FileRO
                          }
   deriving (Eq, Show, Read)
 
@@ -59,19 +76,14 @@ instance Show HandleR where
   show (HandleR s) = "{handle: " ++ s ++ "}"
 
 instance Read HandleR where
-  readsPrec _ s = case span (/= ' ') (dropWhile (== ' ') s) of
-                    ("{handle:", h)  ->
-                      -- of course this will misbehave for any files with '}'
-                      -- in the name
-                      let (fn,rest) = span (/= '}') (tail h) -- head h == ' '
-                       in [(HandleR fn, tail rest)]
-                    _ -> error $ "no Handle parse of: '" ++ s ++ "'"
+  readsPrec _ s = readHandle HandleR s
 
 ----------------------------------------
 
 check_invocation :: (Read a, Eq a, Show a) =>
                     FilePath -> String -> [String]
-                             -> Int -> [a] -> Maybe Getoptsx -> Map.Map String String
+                             -> Int -> [a] -> Maybe Getoptsx
+                             -> Map.Map String String
                              -> [String]
                              -> IO [Test]
 
@@ -116,12 +128,14 @@ main = do
   let opt   = Getoptsx { _s = "", _i = 4, _incr = 0, _decr = 6
                        , _maybe_i = Nothing, _mebbej = Just 5
                        , _handle = HandleR "/etc/motd"
+                       , _filero = FRO "/etc/group"
                        }
       items = Map.fromList [ ("i", "4"), ("s", "\"\"")
                            , ("mebbei", "Nothing")
                            , ("mebbej", "Just 5")
-                           , ("incr", "0"), ("decr", "6") 
+                           , ("incr", "0"), ("decr", "6")
                            , ("handle", "{handle: /etc/motd}")
+                           , ("filero", "{handle: /etc/group}")
                            ]
 
   (fmap concat . sequence)
@@ -148,19 +162,32 @@ main = do
             (Map.fromList [ ("i", "13") , ("s", "\"jim\"") , ("incr", "3") ]
              `Map.union` items)
             []
-    
+
     , check "mebbe" [ "2", "3", "--maybe-i", "14", "--mebbej", "Nothing" ]
             0 [ 2, 3 ]
             (Just opt { _maybe_i = Just 14, _mebbej = Nothing })
             (Map.fromList [ ("mebbei", "Just 14") , ("mebbej", "Nothing") ]
              `Map.union` items)
             []
-    
+
     , check "mebbe" [ "2", "3", "--mebbej", "Just 2" ]
             0 [ 2, 3 ]
             (Just opt { _mebbej = Just 2 })
             (Map.fromList [ ("mebbej", "Just 2") ] `Map.union` items)
             []
-    
+
+    , check "handles" [ "2", "3"
+                      , "--handle", "/etc/passwd"
+                      , "--filero", "/etc/ld.so.conf" ]
+            0 [ 2, 3 ]
+            (Just opt { _handle = HandleR "/etc/passwd"
+                      , _filero = FRO     "/etc/ld.so.conf"
+                      })
+            (             Map.fromList [ ("filero", "{handle: /etc/ld.so.conf}")
+                                       , ("handle", "{handle: /etc/passwd}")
+                                       ]
+             `Map.union` items)
+            []
+
     ]
     >>= test

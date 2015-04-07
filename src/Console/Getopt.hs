@@ -161,9 +161,14 @@ module Console.Getopt
   )
 where
 
--- add tests that check that an option with no default causes a throw at option-
---   parsing time if the user doesn't supply an option; test this for filero
---   when used without a default value
+-- *Thing
+-- *?Thing
+-- undo uber-default of "" for pclv default of *Thing
+-- ?re-apply CmdlineParseable
+-- test use of home-made IO types with GetoptTH
+-- test use of home-made types with GetoptTH
+-- document how to use home-made types with GetoptTH
+-- test ?filero type 
 -- clean build from scratch
 -- mandatory option; leading '!'; causes error if this option isn't invoked.
 --   particularly required for, e.g., String, which has a natural default and so
@@ -189,6 +194,9 @@ where
 --   later)
 -- remove debug
 -- complete converting example options in getopt-th.hs
+-- add tests that check that an option with no default causes a throw at option-
+--   parsing time if the user doesn't supply an option; test this for filero
+--   when used without a default value
 
 {-
 

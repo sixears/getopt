@@ -28,6 +28,7 @@ where
 
 import Data.List   ( isPrefixOf )
 import Data.Maybe  ( fromMaybe )
+import Debug.Trace  ( trace )
 
 -- lenses ------------------------------
 
@@ -155,4 +156,4 @@ recordFields o = ('_' : o ^. lensname, optionTypename o)
    they are later lensed.
  -}
 precordDefFields :: OptDesc -> (String, String, ExpQ)
-precordDefFields o = ('_' : o ^. lensname ++ "___", pclvTypename o, o ^. strt)
+precordDefFields o = trace ("pclvTypename: " ++ show (pclvTypename o)) $ ('_' : o ^. lensname ++ "___", pclvTypename o, o ^. strt)

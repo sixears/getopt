@@ -160,7 +160,8 @@ errf typ tt s =
 -- | typename regex; /^::([][?.0-9A-Za-z]+)/
 
 opttypename :: RE Char String
-opttypename = string "::" *> some (psym (\c -> isAlphaNum c || c `elem` "[?]. "))
+opttypename = string "::" *> 
+                some (psym (\c -> isAlphaNum c || c `elem` "*[?]. "))
 
 -- | default value regex; /^([<({])[^(inverse \1)](inverse \1)/
 
@@ -312,6 +313,10 @@ readsPrecOptDesc _ s =
       -- take a predicate and a string error text, return the error text
       -- if the predicate holds true on the supplied arg
       mkM p errtxt = \ x -> if p x then Just (errtxt x) else Nothing
+
+      -------------------
+      -- sanity checks --
+      -------------------
 
       -- check that the option names list isn't null
       check_names_defined =

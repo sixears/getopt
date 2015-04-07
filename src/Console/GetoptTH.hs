@@ -19,7 +19,7 @@ concisely, and thus not detracting from the real business of the program.
  -}
 
 module Console.GetoptTH
-  ( mkopts )
+  ( CmdlineParseable(..), mkopts )
 where
 
 -- THE PLAN: the programmer will create options using mkopts or similar.  An
@@ -80,16 +80,18 @@ import Fluffy.Language.TH.Record       ( mkLensedRecord, mkLensedRecordDef )
 
 -- this package --------------------------------------------
 
-import Console.Getopt.ArgArity  ( ArgArity(..), liftAA )
-import Console.Getopt           ( HelpOpts(..), Option, getopts, helpme, mkOpt )
-import Console.Getopt.OptDesc   ( OptDesc
-                                , descn, dfltTxt, precordDefFields
-                                , recordFields, dfGetter
-                                , names, name, optSetVal
-                                , summary
-                                , enactor
-                                , pclvTypename
-                                )
+import Console.Getopt.ArgArity          ( ArgArity(..), liftAA )
+import Console.Getopt                   ( HelpOpts(..), Option
+                                        , getopts, helpme, mkOpt )
+import Console.Getopt.CmdlineParseable  ( CmdlineParseable(..) )
+import Console.Getopt.OptDesc           ( OptDesc
+                                        , descn, dfltTxt, precordDefFields
+                                        , recordFields, dfGetter
+                                        , names, name, optSetVal
+                                        , summary
+                                        , enactor
+                                        , pclvTypename
+                                        )
 
 --------------------------------------------------------------------------------
 --                              PUBLIC INTERFACE                              --
@@ -207,12 +209,12 @@ import Console.Getopt.OptDesc   ( OptDesc
 
            This is like t, except that the value is wrapped in a Maybe; if no
            value is provided on the command line is provided, you get Nothing.
-           Compilation will fail if you provide a default value 
+           Compilation will fail if you provide a default value
            (with <default>); at that point, the use of Maybe doesn't make a
            whole lot of sense (since you would be guaranteed a Just something).
-           If you really, really want a Maybe type with a default, use an 
-           explicit Maybe.type (which will also mean that you can specify 
-           "Nothing" as an option value; but conversely that you'll also need to 
+           If you really, really want a Maybe type with a default, use an
+           explicit Maybe.type (which will also mean that you can specify
+           "Nothing" as an option value; but conversely that you'll also need to
            specify "Just x" explitly as an option value).
 
          * [t]
@@ -470,9 +472,9 @@ mkGetoptTHTypeSig t = do
     ForallT [PlainTV a] [ClassP ''NFData [VarT a], ClassP ''Show [VarT a]] $
     tsArrows [ -- ConT ''ArgArity
              -- , ConT ''String
-             -- , 
+             -- ,
              tsArrows [ ConT ''String , appTIO(VarT a) ]
-             , 
+             ,
                appTIO (tupleL [ listOfN a, t ])
              ]
 

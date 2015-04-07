@@ -2,8 +2,8 @@
 
 -- base --------------------------------
 
-import Control.Monad      ( forM_ )
-import System.IO          ( Handle )
+import Control.Monad  ( forM_ )
+import System.IO      ( Handle, IOMode( ReadMode ), openFile )
 
 -- data-default ------------------------
 
@@ -20,7 +20,7 @@ import Fluffy.Language.TH.Type  ( readType )
 -- this package --------------------------------------------
 
 import Console.Getopt    ( ArgArity( ArgSome ), mkOpt )
-import Console.GetoptTH  ( mkopts )
+import Console.GetoptTH  ( CmdlineParseable(..), mkopts )
 
 --------------------------------------------------------------------------------
 
@@ -43,6 +43,14 @@ import Console.GetoptTH  ( mkopts )
 
 -- optCfg :: [Option Opts]
 
+newtype FileRO = FRO { getHandle :: Handle }
+
+instance Show FileRO where
+  show (FRO fn) = "FRO: " ++ show fn  
+
+instance CmdlineParseable FileRO where
+  enactOpt = (fmap FRO) . flip openFile ReadMode
+  
 -- use Optx to weed out any assumptions about Opt
 $( mkopts "getoptsx" (ArgSome 1 3) "filename"
           [ "s|string::String#string summary"
@@ -53,6 +61,9 @@ $( mkopts "getoptsx" (ArgSome 1 3) "filename"
           , "incr|C::incr#increment summary\nincrement int longhelp"
           , "decr|D::decr<6>#decrement summary\ndecrement int longhelp"
           , "handle::filero</etc/motd>#read-only file\nauto-opened"
+--          , "handle1::?filero#read-only file (no default)\nauto-opened"
+          , "filero::*FileRO</etc/group>#IO handle (default /etc/group)"
+--          , "mfilero::*?FileRO#IO handle (no default)\nauto-opened"
 --          , "ip::TCP<127.0.0.1:80>#a TCP socket referred by ip address/hostname and port"
 
 --          , "handles::filesro-<[/etc/passwd,/etc/group]>#read-only files\n"
@@ -102,10 +113,12 @@ main :: IO ()
 main = do
   (args, opts) <- getoptsx (return . (readType "Int" :: String -> Int))
   forM_ [ "ARGS: " ++ show args, "OPTS: "  ++ show opts ] putStrLn
-  putStrLn $ "s     : " ++ show (opts ^. s)
-  putStrLn $ "i     : " ++ show (opts ^. i)
-  putStrLn $ "mebbei: " ++ show (opts ^. maybe_i)
-  putStrLn $ "mebbej: " ++ show (opts ^. mebbej)
-  putStrLn $ "incr  : " ++ show (opts ^. incr)
-  putStrLn $ "decr  : " ++ show (opts ^. decr)
-  putStrLn $ "handle: " ++ show (opts ^. handle)
+  putStrLn $ "s     : "  ++ show (opts ^. s)
+  putStrLn $ "i     : "  ++ show (opts ^. i)
+  putStrLn $ "mebbei: "  ++ show (opts ^. maybe_i)
+  putStrLn $ "mebbej: "  ++ show (opts ^. mebbej)
+  putStrLn $ "incr  : "  ++ show (opts ^. incr)
+  putStrLn $ "decr  : "  ++ show (opts ^. decr)
+  putStrLn $ "handle: "  ++ show (opts ^. handle)
+  putStrLn $ "filero: "  ++ show (getHandle $ opts ^. filero)
+--  putStrLn $ "mfilero: " ++ show (opts ^. mfilero)
