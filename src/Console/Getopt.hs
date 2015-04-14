@@ -161,15 +161,16 @@ module Console.Getopt
   )
 where
 
--- *Thing
+-- exit codes; utility (2) & usage (3)
+-- clean build from scratch
+-- IO{Thing} ?
 -- *?Thing
--- undo uber-default of "" for pclv default of *Thing
+-- *[Thing]
 -- ?re-apply CmdlineParseable
--- test use of home-made IO types with GetoptTH
+-- use CmdlineParseable FileRO for /?/[]filero
 -- test use of home-made types with GetoptTH
 -- document how to use home-made types with GetoptTH
--- test ?filero type 
--- clean build from scratch
+-- test ?filero type
 -- mandatory option; leading '!'; causes error if this option isn't invoked.
 --   particularly required for, e.g., String, which has a natural default and so
 --   wouldn't get the benefit of default-less checking.  Or should we use
@@ -226,7 +227,7 @@ setValue'          -- optname, mb_optval, args, old_value
  |    |                      also sees the prior lensed-to value
  |    +-setvalm    -- :: b ; call at most once
  |    |                      allows -o=foo but not -o foo; sets target to Just x
- |    +-setvalm_   -- :: Bool ; specialization of setvalm for Bool values (to 
+ |    +-setvalm_   -- :: Bool ; specialization of setvalm for Bool values (to
  |    |                         take true/1/yes or no/0/false
  |    + setvalm__  -- :: Bool ; logical inversion of setvalm_
  |
@@ -245,6 +246,7 @@ import Data.Char          ( isAlphaNum )
 import Data.Either        ( partitionEithers )
 import Data.List          ( intercalate, partition )
 import Data.Maybe         ( catMaybes, fromJust )
+import Debug.Trace        ( trace )
 import System.Environment ( getArgs, getProgName )
 import System.IO          ( Handle )
 import System.IO.Unsafe   ( unsafeDupablePerformIO )
@@ -671,7 +673,7 @@ getopts_ cfg' arity argtype parser start cmdline_args  = do
   -- check for and warn of errors; exit if errors found
   forM_ (eprefix errs_) ePutStrLn
   forM_ (lines (intercalate "--------\n" (lp helps_))) putStrLn
-  when (0 < length errs_)  exitUsage
+  when (0 < length errs_) exitUsage
   when (0 < length helps_) exitUtility
   case check_arity arity args_ of
     Just e -> do
@@ -816,7 +818,7 @@ parseb s = case lc s of
              "0"     -> False
              _       -> error $    "failed to parse '" ++ s ++ "' as a Bool"
 
--- | specialization of setvalm for Bool values; parses true/yes/1 for true, 
+-- | specialization of setvalm for Bool values; parses true/yes/1 for true,
 --   false/no/0 for no, defaults to True if no value passed
 
 setvalm_ :: Lens' o (Maybe Bool) -> OptParse o
@@ -1238,7 +1240,7 @@ ignoreFirst f _ = f
 
 -- | Handle that is an instance of NFData.  We use a newtype here to avoid an
 --   orphaned type.
--- instance NFData Handle where
+
 newtype NFHandle = NFHandle Handle
   deriving Eq
 instance Show NFHandle where

@@ -42,13 +42,13 @@ import Language.Haskell.TH  ( Exp ( AppE, ConE, LitE, SigE, VarE )
 -- fluffy ------------------------------
 
 import Fluffy.Data.List         ( splitOn )
-import Fluffy.Language.TH       ( composeE, stringE )
+import Fluffy.Language.TH       ( composeE, mAppE, stringE )
 import Fluffy.Language.TH.Type  ( readType )
 
 -- this package --------------------------------------------
 
 import Console.Getopt                   ( setval, setvalc, setvalc', setvals )
-import Console.Getopt.CmdlineParseable  ( enactOpt )
+import Console.Getopt.CmdlineParseable  ( FileRO, enactOpt )
 import Console.Getopt.ParseOpt          ( parseAs )
 
 --------------------------------------------------------------------------------
@@ -139,8 +139,8 @@ readInt = readParser "Int"
 
 -- | open a file in read-only mode
 
-openFileRO :: FilePath -> IO Handle
-openFileRO fn = openFile fn ReadMode
+openFileRO :: FilePath -> IO FileRO
+openFileRO = enactOpt
 
 -- | call setval on a thing parsed to type t
 setval_as :: String -> Exp
@@ -157,9 +157,9 @@ oTypes_ :: String -> OptTypes
 oTypes_ "incr" = def { pclvTypename_   = "Int"
                      , optionTypename_ = "Int"
                      , setter_         = VarE 'setvalc
-                     , enactor_        = VarE 'return
                       -- we need a parser to parse a potential default value
                      , parser_         = readInt
+                     , enactor_        = VarE 'return
                      , default_        = Just . LitE $ IntegerL 0
                      , start_          = Just . LitE $ IntegerL 0
                      , startIsDefault_ = True
@@ -168,25 +168,42 @@ oTypes_ "incr" = def { pclvTypename_   = "Int"
 oTypes_ "decr" = def { pclvTypename_   = "Int"
                      , optionTypename_ = "Int"
                      , setter_         = VarE 'setvalc'
-                     , enactor_        = VarE 'return
                       -- we need a parser to parse a potential default value
                      , parser_         = readInt
+                     , enactor_        = VarE 'return
                      , default_        = Just . LitE $ IntegerL 0
                      , start_          = Just . LitE $ IntegerL 0
                      , startIsDefault_ = True
                      }
 
 oTypes_ "filero" = def { pclvTypename_   = "Maybe FilePath"
-                       , optionTypename_ = "Handle"
+                       , optionTypename_ = "FileRO"
                        , setter_         = AppE (VarE 'setval) (VarE 'return)
-                       , enactor_        = VarE 'openFileRO
                        , parser_         = VarE 'id
+                       , enactor_        = VarE 'openFileRO
                        }
+
+oTypes_ ('?' : '*' : t@(h :_)) 
+                | isUpper h =
+                  def { pclvTypename_   = "Maybe String"
+                      , optionTypename_ = '?' : t
+                      , setter_         = setval_as t
+                      , parser_         = VarE 'id
+                        -- [| maybe (return Nothing) ((fmap Just) . enactOpt) |]
+                      , enactor_        = 
+                          mAppE [ VarE 'maybe
+                                , AppE (VarE 'return) (ConE 'Nothing)
+                                , composeE (AppE (VarE 'fmap) (ConE 'Just)) 
+                                                              (VarE 'enactOpt)
+                                ]
+                      }
+
+                | otherwise = error $ "no such option type: '" ++ t ++ "'"
 
 oTypes_ ('?':t) = def { pclvTypename_   = "Maybe " ++ t
                       , optionTypename_ = '?' : t
-                      , parser_         = readParser t
                       , setter_         = setval_as t
+                      , parser_         = readParser t
                       , enactor_        = VarE 'return
                       }
 
@@ -205,19 +222,20 @@ oTypes_ ('*' : t@(h :_)) | isUpper h =
                  def { pclvTypename_   = "Maybe String"
                      , optionTypename_ = t
                      , setter_         = setval_as t
-                     , enactor_        = VarE 'enactOpt
                      , parser_         = VarE 'id
-                     , default_        = Nothing -- Just . LitE $ StringL ""
+                     , enactor_        = VarE 'enactOpt
+                     , default_        = Nothing
                      }
 
                 | otherwise = error $ "no such option type: '" ++ t ++ "'"
+
 
 oTypes_ t@(h:_) | isUpper h =
                  def { pclvTypename_   = "Maybe " ++ t
                       , optionTypename_ = t
                       , setter_         = setval_as t
-                      , enactor_        = VarE 'return
                       , parser_         = readParser t
+                      , enactor_        = VarE 'return
                       , default_        =
                           case t of
                             "String" -> Just . LitE $ StringL ""

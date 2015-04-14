@@ -62,6 +62,7 @@ data Getoptsx = Getoptsx { _s       :: String
                          , _decr    :: Int
                          , _handle  :: HandleR
                          , _filero  :: FileRO
+                         , _mfilero :: Maybe FileRO
                          }
   deriving (Eq, Show, Read)
 
@@ -125,10 +126,15 @@ main = do
   let getopt_th    = joinPath [ "dist", "build", "getopt-th-hs", "getopt-th-hs" ]
       check        = check_invocation getopt_th
 
-  let opt   = Getoptsx { _s = "", _i = 4, _incr = 0, _decr = 6
-                       , _maybe_i = Nothing, _mebbej = Just 5
-                       , _handle = HandleR "/etc/motd"
-                       , _filero = FRO "/etc/group"
+  let opt   = Getoptsx { _s = ""
+                       , _i = 4
+                       , _incr = 0
+                       , _decr = 6
+                       , _maybe_i = Nothing
+                       , _mebbej  = Just 5
+                       , _handle  = HandleR "/etc/motd"
+                       , _filero  = FRO "/etc/group"
+                       , _mfilero = Nothing
                        }
       items = Map.fromList [ ("i", "4"), ("s", "\"\"")
                            , ("mebbei", "Nothing")
@@ -136,6 +142,7 @@ main = do
                            , ("incr", "0"), ("decr", "6")
                            , ("handle", "{handle: /etc/motd}")
                            , ("filero", "{handle: /etc/group}")
+                           , ("mfilero","Nothing")
                            ]
 
   (fmap concat . sequence)
@@ -178,16 +185,25 @@ main = do
 
     , check "handles" [ "2", "3"
                       , "--handle", "/etc/passwd"
-                      , "--filero", "/etc/ld.so.conf" ]
+                      , "--filero", "/etc/ld.so.conf" 
+                      , "--mfilero", "/etc/hostname" 
+                      ]
             0 [ 2, 3 ]
-            (Just opt { _handle = HandleR "/etc/passwd"
-                      , _filero = FRO     "/etc/ld.so.conf"
+            (Just opt { _handle = HandleR     "/etc/passwd"
+                      , _filero = FRO         "/etc/ld.so.conf"
+                      , _mfilero = Just $ FRO "/etc/hostname"
                       })
             (             Map.fromList [ ("filero", "{handle: /etc/ld.so.conf}")
+                                       , ("mfilero","Just {handle: /etc/hostname}")
                                        , ("handle", "{handle: /etc/passwd}")
                                        ]
              `Map.union` items)
             []
+
+    , check "nofile" [ "2", "3" , "--mfilero", "/etc/nostname" ]
+            2 [] Nothing Map.empty
+            [    "getopt-th-hs: /etc/nostname: openFile: does not exist " 
+              ++ "(No such file or directory)" ]
 
     ]
     >>= test

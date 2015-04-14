@@ -9,6 +9,10 @@ import System.IO      ( Handle, IOMode( ReadMode ), openFile )
 
 import Data.Default  ( Default( def ) )
 
+-- deepseq -----------------------------
+
+import Control.DeepSeq  ( NFData )
+
 -- lens --------------------------------
 
 import Control.Lens  ( (^.) )
@@ -20,7 +24,7 @@ import Fluffy.Language.TH.Type  ( readType )
 -- this package --------------------------------------------
 
 import Console.Getopt    ( ArgArity( ArgSome ), mkOpt )
-import Console.GetoptTH  ( CmdlineParseable(..), mkopts )
+import Console.GetoptTH  ( CmdlineParseable(..), FileRO, mkopts )
 
 --------------------------------------------------------------------------------
 
@@ -43,12 +47,14 @@ import Console.GetoptTH  ( CmdlineParseable(..), mkopts )
 
 -- optCfg :: [Option Opts]
 
-newtype FileRO = FRO { getHandle :: Handle }
+newtype ROFile = FRO { getHandle :: Handle }
 
-instance Show FileRO where
+instance Show ROFile where
   show (FRO fn) = "FRO: " ++ show fn  
 
-instance CmdlineParseable FileRO where
+instance NFData ROFile where
+
+instance CmdlineParseable ROFile where
   enactOpt = (fmap FRO) . flip openFile ReadMode
   
 -- use Optx to weed out any assumptions about Opt
@@ -62,8 +68,8 @@ $( mkopts "getoptsx" (ArgSome 1 3) "filename"
           , "decr|D::decr<6>#decrement summary\ndecrement int longhelp"
           , "handle::filero</etc/motd>#read-only file\nauto-opened"
 --          , "handle1::?filero#read-only file (no default)\nauto-opened"
-          , "filero::*FileRO</etc/group>#IO handle (default /etc/group)"
---          , "mfilero::*?FileRO#IO handle (no default)\nauto-opened"
+          , "filero::*ROFile</etc/group>#IO handle (default /etc/group)"
+          , "mfilero::?*ROFile#IO handle (no default)\nauto-opened"
 --          , "ip::TCP<127.0.0.1:80>#a TCP socket referred by ip address/hostname and port"
 
 --          , "handles::filesro-<[/etc/passwd,/etc/group]>#read-only files\n"
@@ -121,4 +127,5 @@ main = do
   putStrLn $ "decr  : "  ++ show (opts ^. decr)
   putStrLn $ "handle: "  ++ show (opts ^. handle)
   putStrLn $ "filero: "  ++ show (getHandle $ opts ^. filero)
---  putStrLn $ "mfilero: " ++ show (opts ^. mfilero)
+  putStrLn $ "mfilero: " ++ show (maybe Nothing (Just . getHandle) $ 
+                                  opts ^. mfilero)

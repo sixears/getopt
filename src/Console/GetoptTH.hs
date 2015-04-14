@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable  #-}
 {-# LANGUAGE FlexibleInstances   #-}  -- for class Typeish String
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
@@ -19,7 +20,7 @@ concisely, and thus not detracting from the real business of the program.
  -}
 
 module Console.GetoptTH
-  ( CmdlineParseable(..), mkopts )
+  ( CmdlineParseable(..), FileRO, mkopts )
 where
 
 -- THE PLAN: the programmer will create options using mkopts or similar.  An
@@ -35,8 +36,12 @@ where
 
 -- base --------------------------------
 
-import Control.Monad  ( liftM, mapAndUnzipM )
-import Data.List      ( partition )
+import Control.Exception  ( Exception(..), SomeException, evaluate, try )
+import Control.Monad      ( forM_, liftM, mapAndUnzipM )
+import Data.List          ( partition )
+import Data.Maybe         ( fromJust )
+import Data.Typeable      ( Typeable )
+import System.IO          ( IOMode( ReadMode ), openFile )
 
 -- data-default ------------------------
 
@@ -44,7 +49,7 @@ import Data.Default  ( Default( def ) )
 
 -- deepseq -----------------------------
 
-import Control.DeepSeq  ( NFData )
+import Control.DeepSeq  ( NFData, force )
 
 -- lens --------------------------------
 
@@ -53,37 +58,45 @@ import Control.Lens  ( (^.) )
 -- template-haskell --------------------
 
 import Language.Haskell.TH         ( Dec( SigD )
-                                   , Exp( AppE, ConE, DoE , ListE, LitE, VarE )
+                                   , Exp( AppE, ConE, CondE, DoE
+                                        , ListE, LitE, TupE, VarE )
                                    , ExpQ
                                    , Lit( StringL )
                                    , Name
-                                   , Pat( VarP )
+                                   , Pat( TupP, VarP )
                                    , Pred( ClassP )
                                    , Q
                                    , Stmt( BindS, NoBindS )
                                    , Type( AppT, ConT, ForallT, ListT, VarT )
                                    , TyVarBndr( PlainTV )
-                                   , mkName, newName, varE
+                                   , mkName, nameBase, newName, varE
                                    )
 import Language.Haskell.TH.Lib     ( DecsQ, appE )
 import Language.Haskell.TH.Syntax  ( lift )
 
+-- transformers ------------------------
+
+import Control.Monad.IO.Class             ( liftIO )
+import Control.Monad.Trans.Writer.Strict  ( WriterT, runWriterT, tell )
+
 -- fluffy ------------------------------
 
 import Fluffy.Data.String              ( ucfirst )
-import Fluffy.Language.TH              ( appTIO, assignN, infix2E
+import Fluffy.Language.TH              ( appTIO, assignN, composeE, infix2E
                                        , listOfN, mAppE, mAppEQ, mkSimpleTypedFun
                                        , nameEQ, stringEQ, tsArrows
                                        , tupleL
                                        )
 import Fluffy.Language.TH.Record       ( mkLensedRecord, mkLensedRecordDef )
+import Fluffy.Sys.Exit                 ( exitUsage )
+import Fluffy.Sys.IO                   ( ePutStrLn )
 
 -- this package --------------------------------------------
 
 import Console.Getopt.ArgArity          ( ArgArity(..), liftAA )
 import Console.Getopt                   ( HelpOpts(..), Option
                                         , getopts, helpme, mkOpt )
-import Console.Getopt.CmdlineParseable  ( CmdlineParseable(..) )
+import Console.Getopt.CmdlineParseable  ( CmdlineParseable(..), FileRO )
 import Console.Getopt.OptDesc           ( OptDesc
                                         , descn, dfltTxt, precordDefFields
                                         , recordFields, dfGetter
@@ -404,7 +417,18 @@ mkGetoptTH optdescs getoptName arity argtype = do
 
 -- mkEffector ------------------------------------------------------------------
 
--- | create effector, including type sig
+{- | create effector, including type sig
+
+     (getoptsx_effect :: Getoptsx__ -> IO Getoptsx
+      getoptsx_effect g = do
+        string_x    <- return (((fromMaybe "") . (view s___)) g);
+        incr_x   <- return (view incr___ g);
+        handle_x <- openFileRO (((fromMaybe "/etc/motd")
+                                     . (view handle___)) g);
+        (return $ (Getoptsx string_x incr_x handle_x))
+
+      above)
+ -}
 
 mkEffector :: [OptDesc]                           -- ^ option field list
            -> String                              -- ^ getopt_th name
@@ -412,7 +436,8 @@ mkEffector :: [OptDesc]                           -- ^ option field list
 
 mkEffector optdescs getoptName = do
   let effectorSig = tsArrows [ pclv_typename getoptName
-                             , appTIO (ov_typename getoptName) ]
+                             , appTIO (AppT (AppT (ConT ''Either)
+                                             (AppT ListT (ConT ''NFException))) (ov_typename getoptName)) ]
   pclv    <- newName "pclv" -- name of the parameter to the effector; which is
                             -- a PCLV record
   effectorBody <- mkEffectorBody optdescs getoptName pclv
@@ -455,7 +480,7 @@ mk_getopt_th sig getoptName arity argtype =
           rhs = mAppE [ VarE 'getopts, cfg_name getoptName
                       , liftAA arity, (LitE . StringL) argtype ]
           -- (t2apply getoptsx_effect above)
-          lhs = AppE (VarE 't2apply) (effect_name getoptName)
+          lhs = AppE (VarE 't2apply) (composeE (VarE 'checkEx) (effect_name getoptName))
 
 -- mkGetoptTHTypeSig -----------------------------------------------------------
 
@@ -590,9 +615,27 @@ mkEffectorBody :: [OptDesc]  -- ^ option field list
                -> ExpQ
 
 mkEffectorBody optdescs getoptName pclv =  do
+  -- bs are the names that are assigned to, within the writer monad
+  -- binds are each individual bound defaulted option
   (bs, binds) <- mapAndUnzipM (effectBind pclv) optdescs
-  let ctor     = mAppE ((ConE $ ov_typename getoptName) : fmap VarE bs)
-  return (DoE ( binds ++ [ NoBindS (infix2E (VarE 'return) (VarE '($)) ctor) ]))
+  -- mbs are the names of the maybe values, having been try-ed; in each case,
+  -- it's the name from within the writer, plus a trailing "'"
+  mbs         <- sequence $ fmap (newName . nameBase) bs
+  let run_writer = infix2E (VarE 'runWriterT) 
+                           (VarE '($)) 
+                           (DoE (binds ++ 
+                                 [NoBindS (AppE (VarE 'return) 
+                                                (TupE (fmap VarE bs)))]))
+      exs        = mkName "exs"
+      ctor       = mAppE ((ConE $ ov_typename getoptName) : fmap (AppE (VarE 'fromJust) . VarE) mbs)
+      check      = CondE (AppE (VarE 'null) (VarE exs)) 
+                         (infix2E (ConE 'Right) (VarE '($)) ctor)
+                         (AppE (ConE 'Left) (VarE exs))
+  return (DoE ( [ NoBindS $ AppE (VarE 'putStrLn) (LitE (StringL "bart")) ] ++
+                [ BindS (TupP [TupP (fmap VarP mbs), VarP exs]) run_writer ] ++
+--                binds ++
+                [ NoBindS $ AppE (VarE 'putStrLn) (LitE (StringL "lisa"))
+                , NoBindS (infix2E (VarE 'return) (VarE '($)) check) ]))
 
 -- effectBind ------------------------------------------------------------------
 
@@ -604,7 +647,7 @@ effectBind :: Name -> OptDesc -> Q (Name, Stmt)
 effectBind pclv o = do
   b   <- newName $ name o
   dfg <- dfGetter o
-  return (b, BindS (VarP b) (AppE (enactor o) (AppE dfg (VarE pclv))))
+  return (b, BindS (VarP b) (AppE (VarE 'tryWriteF) (AppE (enactor o) (AppE dfg (VarE pclv)))))
 
 -- t2apply ---------------------------------------------------------------------
 
@@ -613,5 +656,55 @@ t2apply effect ab = do
   (a,b) <- ab
   b'    <- effect b
   return (a,b')
+
+-- tryWrite --------------------------------------------------------------------
+
+-- | evaluate an IO thing, catch any errors, write them to a WriterT
+
+tryWrite :: IO a -> WriterT [SomeException] IO (Maybe a)
+tryWrite io = do
+  io' <- liftIO (try io >>= evaluate)
+  case io' of
+    Left e  -> tell [e] >> liftIO (return Nothing)
+    Right r -> (liftIO . return . Just) r
+
+-- tryWriteF -------------------------------------------------------------------
+
+-- | tryWriteF for things susceptible to DeepSeq
+
+tryWriteF :: NFData a => IO a -> WriterT [NFException] IO (Maybe a)
+tryWriteF io = do
+  io' <- liftIO (try io >>= evaluate . force)
+  case io' of
+    Left e  -> tell [e] >> liftIO (return Nothing)
+    Right r -> (liftIO . return . Just) r
+
+-- NFException -----------------------------------------------------------------
+
+-- | A SomeException susceptible to DeepSeq.  Doesn't actually do anything, but
+--   means that we can use it within an NFData/force context.    
+newtype NFException = NFException SomeException
+  deriving Typeable
+
+instance Show NFException where
+  show (NFException e) = show e
+
+instance NFData NFException where
+
+instance Exception NFException where
+  toException (NFException e) = e
+  fromException = Just . NFException
+
+-- checkEx ---------------------------------------------------------------------
+  
+-- | check an Either [Exception] a; if Left, write the exceptions to stderr and 
+--   exitUsage
+
+checkEx :: Exception e => IO (Either [e] a) -> IO a
+checkEx ei_io = do
+  ei <- ei_io
+  case ei of
+    Left exs -> forM_ (fmap show exs) ePutStrLn >> exitUsage
+    Right r  -> return r
 
 -- that's all, folks! ----------------------------------------------------------
