@@ -24,7 +24,6 @@ where
 -- base --------------------------------
 
 import Data.Char   ( isUpper )
-import System.IO   ( Handle, IOMode( ReadMode ), openFile )
 
 -- data-default ------------------------
 

@@ -41,7 +41,6 @@ import Control.Monad      ( forM_, liftM, mapAndUnzipM )
 import Data.List          ( partition )
 import Data.Maybe         ( fromJust )
 import Data.Typeable      ( Typeable )
-import System.IO          ( IOMode( ReadMode ), openFile )
 
 -- data-default ------------------------
 
@@ -90,6 +89,7 @@ import Fluffy.Language.TH              ( appTIO, assignN, composeE, infix2E
 import Fluffy.Language.TH.Record       ( mkLensedRecord, mkLensedRecordDef )
 import Fluffy.Sys.Exit                 ( exitUsage )
 import Fluffy.Sys.IO                   ( ePutStrLn )
+import Fluffy.Sys.Process              ( getProgBaseName )
 
 -- this package --------------------------------------------
 
@@ -621,21 +621,18 @@ mkEffectorBody optdescs getoptName pclv =  do
   -- mbs are the names of the maybe values, having been try-ed; in each case,
   -- it's the name from within the writer, plus a trailing "'"
   mbs         <- sequence $ fmap (newName . nameBase) bs
-  let run_writer = infix2E (VarE 'runWriterT) 
-                           (VarE '($)) 
-                           (DoE (binds ++ 
-                                 [NoBindS (AppE (VarE 'return) 
+  let run_writer = infix2E (VarE 'runWriterT)
+                           (VarE '($))
+                           (DoE (binds ++
+                                 [NoBindS (AppE (VarE 'return)
                                                 (TupE (fmap VarE bs)))]))
       exs        = mkName "exs"
       ctor       = mAppE ((ConE $ ov_typename getoptName) : fmap (AppE (VarE 'fromJust) . VarE) mbs)
-      check      = CondE (AppE (VarE 'null) (VarE exs)) 
+      check      = CondE (AppE (VarE 'null) (VarE exs))
                          (infix2E (ConE 'Right) (VarE '($)) ctor)
                          (AppE (ConE 'Left) (VarE exs))
-  return (DoE ( [ NoBindS $ AppE (VarE 'putStrLn) (LitE (StringL "bart")) ] ++
-                [ BindS (TupP [TupP (fmap VarP mbs), VarP exs]) run_writer ] ++
---                binds ++
-                [ NoBindS $ AppE (VarE 'putStrLn) (LitE (StringL "lisa"))
-                , NoBindS (infix2E (VarE 'return) (VarE '($)) check) ]))
+  return (DoE ( [ BindS (TupP [TupP (fmap VarP mbs), VarP exs]) run_writer ] ++
+                [ NoBindS (infix2E (VarE 'return) (VarE '($)) check) ]))
 
 -- effectBind ------------------------------------------------------------------
 
@@ -661,12 +658,12 @@ t2apply effect ab = do
 
 -- | evaluate an IO thing, catch any errors, write them to a WriterT
 
-tryWrite :: IO a -> WriterT [SomeException] IO (Maybe a)
-tryWrite io = do
-  io' <- liftIO (try io >>= evaluate)
-  case io' of
-    Left e  -> tell [e] >> liftIO (return Nothing)
-    Right r -> (liftIO . return . Just) r
+--A tryWrite :: IO a -> WriterT [SomeException] IO (Maybe a)
+--A tryWrite io = do
+--A   io' <- liftIO (try io >>= evaluate)
+--A   case io' of
+--A     Left e  -> tell [e] >> liftIO (return Nothing)
+--A     Right r -> (liftIO . return . Just) r
 
 -- tryWriteF -------------------------------------------------------------------
 
@@ -682,7 +679,7 @@ tryWriteF io = do
 -- NFException -----------------------------------------------------------------
 
 -- | A SomeException susceptible to DeepSeq.  Doesn't actually do anything, but
---   means that we can use it within an NFData/force context.    
+--   means that we can use it within an NFData/force context.
 newtype NFException = NFException SomeException
   deriving Typeable
 
@@ -696,15 +693,17 @@ instance Exception NFException where
   fromException = Just . NFException
 
 -- checkEx ---------------------------------------------------------------------
-  
--- | check an Either [Exception] a; if Left, write the exceptions to stderr and 
+
+-- | check an Either [Exception] a; if Left, write the exceptions to stderr and
 --   exitUsage
 
 checkEx :: Exception e => IO (Either [e] a) -> IO a
 checkEx ei_io = do
   ei <- ei_io
   case ei of
-    Left exs -> forM_ (fmap show exs) ePutStrLn >> exitUsage
+    Left exs -> do progname <- getProgBaseName
+                   forM_ (fmap ((\x -> progname ++ ": " ++ x) . show) exs) ePutStrLn >> exitUsage
     Right r  -> return r
+
 
 -- that's all, folks! ----------------------------------------------------------

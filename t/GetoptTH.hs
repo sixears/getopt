@@ -47,8 +47,7 @@ readHandle ctor s = case span (/= ' ') (dropWhile (== ' ') s) of
                          in [(ctor fn, tail rest)]
                       _ -> error $ "no Handle parse of: '" ++ s ++ "'"
 
-
-newtype FileRO = FRO { getHandle :: String }
+newtype FileRO = FRO { _getHandle :: String }
   deriving (Show, Eq)
 
 instance Read FileRO where
@@ -77,7 +76,7 @@ instance Show HandleR where
   show (HandleR s) = "{handle: " ++ s ++ "}"
 
 instance Read HandleR where
-  readsPrec _ s = readHandle HandleR s
+  readsPrec _ s = readHandle HandleR (dropWhile (/= ' ') (dropWhile (== ' ') s))
 
 ----------------------------------------
 
@@ -140,7 +139,7 @@ main = do
                            , ("mebbei", "Nothing")
                            , ("mebbej", "Just 5")
                            , ("incr", "0"), ("decr", "6")
-                           , ("handle", "{handle: /etc/motd}")
+                           , ("handle", "FRO: {handle: /etc/motd}")
                            , ("filero", "{handle: /etc/group}")
                            , ("mfilero","Nothing")
                            ]
@@ -195,13 +194,13 @@ main = do
                       })
             (             Map.fromList [ ("filero", "{handle: /etc/ld.so.conf}")
                                        , ("mfilero","Just {handle: /etc/hostname}")
-                                       , ("handle", "{handle: /etc/passwd}")
+                                       , ("handle", "FRO: {handle: /etc/passwd}")
                                        ]
              `Map.union` items)
             []
 
     , check "nofile" [ "2", "3" , "--mfilero", "/etc/nostname" ]
-            2 [] Nothing Map.empty
+            3 [] Nothing Map.empty
             [    "getopt-th-hs: /etc/nostname: openFile: does not exist " 
               ++ "(No such file or directory)" ]
 

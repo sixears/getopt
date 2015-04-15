@@ -171,6 +171,8 @@ where
 -- test use of home-made types with GetoptTH
 -- document how to use home-made types with GetoptTH
 -- test ?filero type
+-- add summary description of prog
+-- add standard 'how help works; std exit codes' text at end of help
 -- mandatory option; leading '!'; causes error if this option isn't invoked.
 --   particularly required for, e.g., String, which has a natural default and so
 --   wouldn't get the benefit of default-less checking.  Or should we use
@@ -246,7 +248,6 @@ import Data.Char          ( isAlphaNum )
 import Data.Either        ( partitionEithers )
 import Data.List          ( intercalate, partition )
 import Data.Maybe         ( catMaybes, fromJust )
-import Debug.Trace        ( trace )
 import System.Environment ( getArgs, getProgName )
 import System.IO          ( Handle )
 import System.IO.Unsafe   ( unsafeDupablePerformIO )

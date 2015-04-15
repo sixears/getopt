@@ -50,13 +50,13 @@ import Console.GetoptTH  ( CmdlineParseable(..), FileRO, mkopts )
 newtype ROFile = FRO { getHandle :: Handle }
 
 instance Show ROFile where
-  show (FRO fn) = "FRO: " ++ show fn  
+  show rof = "FRO: " ++ show (getHandle rof)
 
 instance NFData ROFile where
 
 instance CmdlineParseable ROFile where
   enactOpt = (fmap FRO) . flip openFile ReadMode
-  
+
 -- use Optx to weed out any assumptions about Opt
 $( mkopts "getoptsx" (ArgSome 1 3) "filename"
           [ "s|string::String#string summary"
@@ -127,5 +127,5 @@ main = do
   putStrLn $ "decr  : "  ++ show (opts ^. decr)
   putStrLn $ "handle: "  ++ show (opts ^. handle)
   putStrLn $ "filero: "  ++ show (getHandle $ opts ^. filero)
-  putStrLn $ "mfilero: " ++ show (maybe Nothing (Just . getHandle) $ 
+  putStrLn $ "mfilero: " ++ show (maybe Nothing (Just . getHandle) $
                                   opts ^. mfilero)
