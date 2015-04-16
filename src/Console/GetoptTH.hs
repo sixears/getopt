@@ -37,7 +37,7 @@ where
 -- base --------------------------------
 
 import Control.Exception   ( Exception(..), SomeException, evaluate, try )
-import Control.Monad       ( forM_, liftM, mapAndUnzipM )
+import Control.Monad       ( forM_, mapAndUnzipM )
 import Data.List           ( partition )
 import Data.Maybe          ( fromJust )
 import Data.Typeable       ( Typeable )
@@ -570,8 +570,8 @@ cfg_name  = convert . (++ "_")
 
 -- concatM ---------------------------------------------------------------------
 
-concatM :: Monad m => [m [a]] -> m [a]
-concatM = liftM concat . sequence
+concatM :: (Functor m, Monad m) => [m [a]] -> m [a]
+concatM = fmap concat . sequence
 
 -- mkopt -----------------------------------------------------------------------
 
@@ -669,10 +669,11 @@ mkEffectorBody optdescs getoptName pclv =  do
                          (composeApE (ConE 'Right) c'tor)
                          -- else Left exs
                          (AppE (ConE 'Left) (VarE exs))
-  return (DoE ( --  ((a, b, ...), exs) <- runWriterT...
-                [ BindS (TupP [TupP (fmap VarP mbs), VarP exs]) run_writer ] ++
-                --  return $ if ...
-                [ NoBindS (composeApE (VarE 'return) check) ]))
+  return (DoE --  ((a, b, ...), exs) <- runWriterT...
+              [ BindS (TupP [TupP (fmap VarP mbs), VarP exs]) run_writer
+              --  return $ if ...
+              , NoBindS (composeApE (VarE 'return) check)
+              ])
 
 -- effectBind ------------------------------------------------------------------
 
@@ -685,8 +686,8 @@ effectBind :: Name -> OptDesc -> Q (Name, Stmt)
 effectBind pclv o = do
   b   <- newName $ name o
   dfg <- dfGetter o
-  let enact = (AppE (enactor o) (AppE dfg (VarE pclv)))
-      tryW  = (composeApE (VarE 'tryWriteF) enact)
+  let enact = AppE (enactor o) (AppE dfg (VarE pclv))
+      tryW  = composeApE (VarE 'tryWriteF) enact
   return (b, BindS (VarP b) tryW)
 
 -- t2apply ---------------------------------------------------------------------

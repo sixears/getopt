@@ -55,7 +55,7 @@ instance Show ROFile where
 instance NFData ROFile where
 
 instance CmdlineParseable ROFile where
-  enactOpt = (fmap FRO) . flip openFile ReadMode
+  enactOpt = fmap FRO . flip openFile ReadMode
 
 -- use Optx to weed out any assumptions about Opt
 $( mkopts "getoptsx" (ArgSome 1 3) "filename"
@@ -127,5 +127,4 @@ main = do
   putStrLn $ "decr  : "  ++ show (opts ^. decr)
   putStrLn $ "handle: "  ++ show (opts ^. handle)
   putStrLn $ "filero: "  ++ show (getHandle $ opts ^. filero)
-  putStrLn $ "mfilero: " ++ show (maybe Nothing (Just . getHandle) $
-                                  opts ^. mfilero)
+  putStrLn $ "mfilero: " ++ show (fmap getHandle (opts ^. mfilero))

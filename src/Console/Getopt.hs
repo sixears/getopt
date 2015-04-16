@@ -161,15 +161,9 @@ module Console.Getopt
   )
 where
 
--- hlint; chadd; clean build from scratch
 -- IO{Thing} ?
--- *?Thing
--- *[Thing]
--- ?re-apply CmdlineParseable
--- use CmdlineParseable FileRO for /?/[]filero
--- test use of home-made types with GetoptTH
--- document how to use home-made types with GetoptTH
--- test ?filero type
+-- ; *?Thing / *[Thing]
+-- hlint; chadd; clean build from scratch
 -- add summary description of prog
 -- add standard 'how help works; std exit codes' text at end of help
 -- mandatory option; leading '!'; causes error if this option isn't invoked.

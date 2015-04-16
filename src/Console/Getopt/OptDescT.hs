@@ -312,7 +312,7 @@ readsPrecOptDesc _ s =
 
       -- take a predicate and a string error text, return the error text
       -- if the predicate holds true on the supplied arg
-      mkM p errtxt = \ x -> if p x then Just (errtxt x) else Nothing
+      mkM p errtxt x = if p x then Just (errtxt x) else Nothing
 
       -------------------
       -- sanity checks --
@@ -324,7 +324,7 @@ readsPrecOptDesc _ s =
 
       -- check that no option names lead with a hyphen
       check_names_no_leading_hyphen =
-        mkM (not . null . (filter $ (== '-') . head) . view names)
+        mkM (any ((== '-') . head) . view names)
             (\ x -> printf "option name '%s' may not begin with a hyphen"
                            (head $ (filter $ (== '-') . head) (x ^. names))
             )
@@ -357,7 +357,7 @@ readsPrecOptDesc _ s =
 
       -- disallow the use of a default value with a '?' type
       check_type_no_default_on_qmark =
-        mkM (\ x ->    ((== '?') . head . (view typename)) x
+        mkM (\ x ->    ((== '?') . head . view typename) x
                     && pprintQ (x ^. dflt) /= pprintQ [| Nothing |])
             (\ x -> printf "no default allowed with '?TYPE': '%s' (%s)"
                            s (x ^. typename))
@@ -367,7 +367,7 @@ readsPrecOptDesc _ s =
         mkM (const $ (not . null) r)
             (const $ printf "failed to parse option '%s' at '%s'" s r)
 
-  in maybe [(o,"")] error $ msum $ fmap ($ o) [ check_no_remaining_text
+  in maybe [(o,"")] error . msum $ fmap ($ o) [ check_no_remaining_text
                                               , check_names_defined
                                               , check_names_no_leading_hyphen
                                               , check_lens_defined
