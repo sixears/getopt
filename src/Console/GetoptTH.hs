@@ -36,11 +36,11 @@ where
 
 -- base --------------------------------
 
-import Control.Exception  ( Exception(..), SomeException, evaluate, try )
-import Control.Monad      ( forM_, liftM, mapAndUnzipM )
-import Data.List          ( partition )
-import Data.Maybe         ( fromJust )
-import Data.Typeable      ( Typeable )
+import Control.Exception   ( Exception(..), SomeException, evaluate, try )
+import Control.Monad       ( forM_, liftM, mapAndUnzipM )
+import Data.List           ( partition )
+import Data.Maybe          ( fromJust )
+import Data.Typeable       ( Typeable )
 
 -- data-default ------------------------
 
@@ -52,7 +52,7 @@ import Control.DeepSeq  ( NFData, force )
 
 -- lens --------------------------------
 
-import Control.Lens  ( (^.) )
+import Control.Lens  ( (^.), _2 )
 
 -- template-haskell --------------------
 
@@ -81,21 +81,19 @@ import Control.Monad.Trans.Writer.Strict  ( WriterT, runWriterT, tell )
 -- fluffy ------------------------------
 
 import Fluffy.Data.String              ( ucfirst )
-import Fluffy.Language.TH              ( appTIO, assignN, composeE, infix2E
-                                       , listOfN, mAppE, mAppEQ, mkSimpleTypedFun
-                                       , nameEQ, stringEQ, tsArrows
-                                       , tupleL
+import Fluffy.Language.TH              ( appTIO, assignN, composeApE, composeE
+                                       , infix2E , listOfN, mAppE, mAppEQ
+                                       , mkSimpleTypedFun, nameEQ, stringEQ
+                                       , tsArrows, tupleL
                                        )
 import Fluffy.Language.TH.Record       ( mkLensedRecord, mkLensedRecordDef )
 import Fluffy.Sys.Exit                 ( exitUsage )
-import Fluffy.Sys.IO                   ( ePutStrLn )
-import Fluffy.Sys.Process              ( getProgBaseName )
 
 -- this package --------------------------------------------
 
 import Console.Getopt.ArgArity          ( ArgArity(..), liftAA )
 import Console.Getopt                   ( HelpOpts(..), Option
-                                        , getopts, helpme, mkOpt )
+                                        , getopts, helpme, mkOpt, errOut )
 import Console.Getopt.CmdlineParseable  ( CmdlineParseable(..), FileRO )
 import Console.Getopt.OptDesc           ( OptDesc
                                         , descn, dfltTxt, precordDefFields
@@ -315,16 +313,24 @@ mkopts getoptName arity argtype optcfgs = do
                          "this help" "Provide help text..." "" ""
                  ]
 
-      getoptsx_effect :: Getoptsx__ -> IO Getoptsx
+      getoptsx_effect :: Getoptsx__ -> IO (Either [NFException] Getoptsx)
       getoptsx_effect pclv = do
-        string_x    <- return (((fromMaybe "") . (view s___)) pclv);
-        incr_x   <- return (view incr___ pclv);
-        handle_x <- openFileRO (((fromMaybe "/etc/motd")
-                                     . (view handle___)) pclv);
-        (return $ (Getoptsx string_x incr_x handle_x))
+        ((string_x', incr_x', handle_x'), exs) <- runWriterT $ do
+                string_x    <- tryWriteF $
+                                 return (((fromMaybe "") . (view s___)) pclv);
+                incr_x      <- tryWriteF $ return (view incr___ pclv)
+                handle_x    <- tryWriteF $
+                                 openFileRO (((fromMaybe "/etc/motd")
+                                              . (view handle___)) pclv)
+                return (string_x, incr_x, handle_x)
+        return $ if null exs
+                 then Right $ Getoptsx (fromJust string_x')
+                                       (fromJust incr_x')
+                                       (fromJust handle_x')
+                 else Left exs
 
     getoptsx :: (NFData a, Show a) => (String -> IO a) -> IO ([a], Getoptsx)
-    getoptsx = (t2apply getoptsx_effect)
+    getoptsx = (t2apply (checkEx . getoptsx_effect))
                . (getopts getoptsx_ (ArgSome 1 3) "filename")
 
   -}
@@ -368,11 +374,12 @@ mkopts getoptName arity argtype optcfgs = do
   concatM [ precord      -- (data Getoptsx__ = Getoptsx__ { ... } above)
           , record       -- (data Getoptsx = Getoptsx { ... }     above)
           , asgn_mkopts  -- (getoptsx_ ...                        above)
-            -- (getoptsx_effect :: Getoptsx__ -> IO Getoptsx
+            -- (getoptsx_effect :: Getoptsx__ ->
+            --                                IO (Either [NFException] Getoptsx)
             --  getoptsx_effect pclv = pclv -> do { ... }
             --  getoptsx :: (NFData a, Show a) => (String -> IO a)
             --                                 -> IO ([a], Getoptsx)
-            --  getoptsx = (t2apply getoptsx_effect)
+            --  getoptsx = (t2apply (checkEx . getoptsx_effect))
             --             . (getopts getoptsx_ (ArgSome 1 3) "filename")
             --  above)
           , mkGetoptTH optdescs getoptName arity argtype
@@ -386,18 +393,26 @@ mkopts getoptName arity argtype optcfgs = do
 
 {- | generate effector & getopts_th fn
 
-     (getoptsx_effect :: Getoptsx__ -> IO Getoptsx
-      getoptsx_effect g = do
-        string_x    <- return (((fromMaybe "") . (view s___)) g);
-        incr_x   <- return (view incr___ g);
-        handle_x <- openFileRO (((fromMaybe "/etc/motd")
-                                     . (view handle___)) g);
-        (return $ (Getoptsx string_x incr_x handle_x))
+     (getoptsx_effect :: Getoptsx__ -> IO (Either [NFException] Getoptsx)
+      getoptsx_effect pclv = do
+        ((string_x', incr_x', handle_x'), exs) <- runWriterT $ do
+                string_x    <- tryWriteF $
+                                 return (((fromMaybe "") . (view s___)) pclv);
+                incr_x      <- tryWriteF $ return (view incr___ pclv)
+                handle_x    <- tryWriteF $
+                                 openFileRO (((fromMaybe "/etc/motd")
+                                              . (view handle___)) pclv)
+                return (string_x, incr_x, handle_x)
+        return $ if null exs
+                 then Right $ Getoptsx (fromJust string_x')
+                                       (fromJust incr_x')
+                                       (fromJust handle_x')
+                 else Left exs
 
       getoptsx :: (NFData a, Show a) => (String -> IO a)
                                      -> IO ([a], Getoptsx)
 
-      getoptsx = (t2apply getoptsx_effect)
+      getoptsx = (t2apply (checkEx . getoptsx_effect))
                  . (getopts getoptsx_ (ArgSome 1 3) "filename")
       above)
  -}
@@ -419,13 +434,20 @@ mkGetoptTH optdescs getoptName arity argtype = do
 
 {- | create effector, including type sig
 
-     (getoptsx_effect :: Getoptsx__ -> IO Getoptsx
-      getoptsx_effect g = do
-        string_x    <- return (((fromMaybe "") . (view s___)) g);
-        incr_x   <- return (view incr___ g);
-        handle_x <- openFileRO (((fromMaybe "/etc/motd")
-                                     . (view handle___)) g);
-        (return $ (Getoptsx string_x incr_x handle_x))
+      getoptsx_effect pclv = do
+        ((string_x', incr_x', handle_x'), exs) <- runWriterT $ do
+                string_x    <- tryWriteF $
+                                 return (((fromMaybe "") . (view s___)) pclv);
+                incr_x      <- tryWriteF $ return (view incr___ pclv)
+                handle_x    <- tryWriteF $
+                                 openFileRO (((fromMaybe "/etc/motd")
+                                              . (view handle___)) pclv)
+                return (string_x, incr_x, handle_x)
+        return $ if null exs
+                 then Right $ Getoptsx (fromJust string_x')
+                                       (fromJust incr_x')
+                                       (fromJust handle_x')
+                 else Left exs
 
       above)
  -}
@@ -447,7 +469,7 @@ mkEffector optdescs getoptName = do
 
 -- | create effector fn, inc. type signature
 --
---   (getoptsx_effect :: Getoptsx__ -> IO Getoptsx
+--   (getoptsx_effect :: Getoptsx__ -> IO (Either [NFException] Getoptsx)
 --    getoptsx_effect g = do { ... }
 --    above)
 
@@ -464,7 +486,7 @@ mk_effector ts nam g = mkSimpleTypedFun ts (mkName nam) [g]
 -- | generated getopts-like fn
 --
 --   (getoptsx :: (NFData a, Show a) => (String -> IO a) -> IO ([a], Getoptsx)
---    getoptsx = (t2apply getoptsx_effect)
+--    getoptsx = (t2apply (checkEx . getoptsx_effect))
 --               . (getopts getoptsx_ (ArgSome 1 3) "filename")
 --    above)
 
@@ -479,8 +501,9 @@ mk_getopt_th sig getoptName arity argtype =
     where -- (getopts getoptsx_ (ArgSome 1 3) "filename" above)
           rhs = mAppE [ VarE 'getopts, cfg_name getoptName
                       , liftAA arity, (LitE . StringL) argtype ]
-          -- (t2apply getoptsx_effect above)
-          lhs = AppE (VarE 't2apply) (composeE (VarE 'checkEx) (effect_name getoptName))
+          -- (t2apply (checkEx . getoptsx_effect) above)
+          lhs = AppE (VarE 't2apply)
+                     (composeE (VarE 'checkEx) (effect_name getoptName))
 
 -- mkGetoptTHTypeSig -----------------------------------------------------------
 
@@ -596,18 +619,30 @@ helpmeQ arity argtype =
 -}
 
 -- mkEffectorBody g = do
---   a <- enactor (dfGetter a___)
---   b <- enactor (dfGetter b___)
---   ...
---   return $ GetoptName a b
+--   ((a, b, ...), exs) <- runWriterT $ do
+--                             a <- tryWriteF $ enactor (dfGetter a___)
+--                             b <- tryWriteF $ enactor (dfGetter b___)
+--                             ...
+--                             return (a, b, ...)
+--   return $ if null exs
+--            then Right $ GetoptName (fromJust a) (fromJust b) ...
+--            else Left exs
 
 -- (do
---   string_x <- return (((fromMaybe "") . (view s___)) g);
---   incr_x   <- return (view incr___ g);
---   handle_x <- openFileRO (((fromMaybe "/etc/motd")
---                            . (view handle___)) g);
---   (return $ (Getoptsx string_x incr_x handle_x))
---  below)
+--   ((string_x', incr_x', handle_x'), exs) <- runWriterT $ do
+--           string_x    <- tryWriteF $
+--                            return (((fromMaybe "") . (view s___)) pclv);
+--           incr_x      <- tryWriteF $ return (view incr___ pclv)
+--           handle_x    <- tryWriteF $
+--                            openFileRO (((fromMaybe "/etc/motd")
+--                                         . (view handle___)) pclv)
+--           return (string_x, incr_x, handle_x)
+--   return $ if null exs
+--            then Right $ Getoptsx (fromJust string_x')
+--                                  (fromJust incr_x')
+--                                  (fromJust handle_x')
+--            else Left exs
+--  above)
 
 mkEffectorBody :: [OptDesc]  -- ^ option field list
                -> String     -- ^ name of the generated getopt_th
@@ -621,49 +656,55 @@ mkEffectorBody optdescs getoptName pclv =  do
   -- mbs are the names of the maybe values, having been try-ed; in each case,
   -- it's the name from within the writer, plus a trailing "'"
   mbs         <- sequence $ fmap (newName . nameBase) bs
-  let run_writer = infix2E (VarE 'runWriterT)
-                           (VarE '($))
-                           (DoE (binds ++
-                                 [NoBindS (AppE (VarE 'return)
-                                                (TupE (fmap VarE bs)))]))
+  -- rtn_bs_tup is the return of a tuple of each bind (return (a, b, ...))
+  let rtn_bs_tup = [NoBindS (AppE (VarE 'return) (TupE (fmap VarE bs)))]
+      run_writer = composeApE (VarE 'runWriterT) (DoE (binds ++ rtn_bs_tup))
       exs        = mkName "exs"
-      ctor       = mAppE ((ConE $ ov_typename getoptName) : fmap (AppE (VarE 'fromJust) . VarE) mbs)
-      check      = CondE (AppE (VarE 'null) (VarE exs))
-                         (infix2E (ConE 'Right) (VarE '($)) ctor)
+      -- c'tor args are the map of fromJust across the maybe binds
+      c'tor_args = fmap (AppE (VarE 'fromJust) . VarE) mbs
+      c'tor      = mAppE ((ConE $ ov_typename getoptName) : c'tor_args)
+      check      = CondE -- if null exs
+                         (AppE (VarE 'null) (VarE exs))
+                         -- then Right $ GetoptName (fromJust a) (fromJust b) ...
+                         (composeApE (ConE 'Right) c'tor)
+                         -- else Left exs
                          (AppE (ConE 'Left) (VarE exs))
-  return (DoE ( [ BindS (TupP [TupP (fmap VarP mbs), VarP exs]) run_writer ] ++
-                [ NoBindS (infix2E (VarE 'return) (VarE '($)) check) ]))
+  return (DoE ( --  ((a, b, ...), exs) <- runWriterT...
+                [ BindS (TupP [TupP (fmap VarP mbs), VarP exs]) run_writer ] ++
+                --  return $ if ...
+                [ NoBindS (composeApE (VarE 'return) check) ]))
 
 -- effectBind ------------------------------------------------------------------
 
 -- | given some var pclv which is of type GetoptName__, return a stmt of the
 --   form b <- enactor (dfGetter pclv)
---   (e.g., string_x <- return (((fromMaybe "") . (view s___)) pclv above)
+--   (e.g., string_x <- tryWriteF $ return (((fromMaybe "") . (view s___)) pclv
+--    above)
 
 effectBind :: Name -> OptDesc -> Q (Name, Stmt)
 effectBind pclv o = do
   b   <- newName $ name o
   dfg <- dfGetter o
-  return (b, BindS (VarP b) (AppE (VarE 'tryWriteF) (AppE (enactor o) (AppE dfg (VarE pclv)))))
+  let enact = (AppE (enactor o) (AppE dfg (VarE pclv)))
+      tryW  = (composeApE (VarE 'tryWriteF) enact)
+  return (b, BindS (VarP b) tryW)
 
 -- t2apply ---------------------------------------------------------------------
 
-t2apply :: Monad m => (b -> m b') -> m (a, b) -> m (a, b')
-t2apply effect ab = do
-  (a,b) <- ab
-  b'    <- effect b
-  return (a,b')
+-- | apply a monadic fn to the second element of a monadic pair
+t2apply :: (Monad m, Functor m) => (b -> m b') -> m (a, b) -> m (a, b')
+t2apply f = (>>= _2 f)
 
 -- tryWrite --------------------------------------------------------------------
 
 -- | evaluate an IO thing, catch any errors, write them to a WriterT
 
---A tryWrite :: IO a -> WriterT [SomeException] IO (Maybe a)
---A tryWrite io = do
---A   io' <- liftIO (try io >>= evaluate)
---A   case io' of
---A     Left e  -> tell [e] >> liftIO (return Nothing)
---A     Right r -> (liftIO . return . Just) r
+_tryWrite :: IO a -> WriterT [SomeException] IO (Maybe a)
+_tryWrite io = do
+  io' <- liftIO (try io >>= evaluate)
+  case io' of
+    Left e  -> tell [e] >> liftIO (return Nothing)
+    Right r -> (liftIO . return . Just) r
 
 -- tryWriteF -------------------------------------------------------------------
 
@@ -679,7 +720,7 @@ tryWriteF io = do
 -- NFException -----------------------------------------------------------------
 
 -- | A SomeException susceptible to DeepSeq.  Doesn't actually do anything, but
---   means that we can use it within an NFData/force context.
+--   means that we can use it within an NFData/force context (e.g., tryWriteF)
 newtype NFException = NFException SomeException
   deriving Typeable
 
@@ -701,8 +742,7 @@ checkEx :: Exception e => IO (Either [e] a) -> IO a
 checkEx ei_io = do
   ei <- ei_io
   case ei of
-    Left exs -> do progname <- getProgBaseName
-                   forM_ (fmap ((\x -> progname ++ ": " ++ x) . show) exs) ePutStrLn >> exitUsage
+    Left exs -> forM_ (fmap show exs) errOut >> exitUsage
     Right r  -> return r
 
 

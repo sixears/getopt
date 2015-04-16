@@ -146,7 +146,7 @@ main = do
 
   (fmap concat . sequence)
     [ check "error invocation"  []    2 []  Nothing    Map.empty
-            [ "! takes between 1 & 3 arguments (inclusive) (got none)" ]
+            [ "! getopt-th-hs: takes between 1 & 3 arguments (inclusive) (got none)" ]
 
     , check "simple invocation" ["7"] 0 [7 :: Int] (Just opt) items []
 
@@ -201,7 +201,7 @@ main = do
 
     , check "nofile" [ "2", "3" , "--mfilero", "/etc/nostname" ]
             3 [] Nothing Map.empty
-            [    "getopt-th-hs: /etc/nostname: openFile: does not exist " 
+            [    "! getopt-th-hs: /etc/nostname: openFile: does not exist " 
               ++ "(No such file or directory)" ]
 
     ]

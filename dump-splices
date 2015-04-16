@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -o pipefail
+# set -x
+
+dir="$(dirname "$0")"
+infn="$dir"/t/getopt-th.hs
+cabal=/usr/local/bin/cabal
+mtime=$(/usr/bin/perl -MPOSIX=strftime -E 'say strftime "%Y%m%d%H%M.%S", gmtime ((stat $ARGV[0])[9])' "$infn")
+touch "$infn"
+$cabal build getopt-th-hs --ghc-option=-ddump-splices 2>&1 | grep -v ^Loading | tee "$dir"/dump-splices.log
+rv=$?
+touch -t $mtime "$infn"
+exit $rv

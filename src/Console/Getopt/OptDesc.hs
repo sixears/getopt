@@ -46,7 +46,6 @@ import Fluffy.Language.TH         ( composeE, nameE, pprintQ )
 
 import qualified Console.Getopt.OTypes as OTypes
 
--- import Console.Getopt.OptDescParse  () -- import OptDesc instance of Read
 import Console.Getopt.OptDescT      ( OptDesc, descn, dflt, lensname
                                     , names, strt, summary, typename )
 

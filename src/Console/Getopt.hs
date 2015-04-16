@@ -157,12 +157,11 @@ module Console.Getopt
   , setvals, setvals', setvalt, setvalf, setval', setvalAList, setvalAList'
 
   -- * useful extras
-  , NFHandle( NFHandle ), progName, unhandle
+  , NFHandle( NFHandle ), errOut, progName, unhandle
   )
 where
 
--- exit codes; utility (2) & usage (3)
--- clean build from scratch
+-- hlint; chadd; clean build from scratch
 -- IO{Thing} ?
 -- *?Thing
 -- *[Thing]
@@ -282,7 +281,7 @@ import Text.Block  ( Block, TableOptions(..), WrapOptions(..)
 import Fluffy.Control.Lens      ( (++=), (=++), (~:~) )
 import Fluffy.Data.AList        ( alist_dups )
 import Fluffy.Data.List         ( spanEnds, splitOn2, splitOnL, tr1 )
-import Fluffy.Data.String       ( lc, unlines' )
+import Fluffy.Data.String       ( lc )
 import Fluffy.Sys.Exit          ( exitUtility, exitUsage )
 import Fluffy.Sys.IO            ( ePutStrLn )
 
@@ -644,6 +643,18 @@ getOptions start optCfg argv = do
   return (reverse (ps ^. args), ps ^. opts,
           reverse (ps ^. errs), fmap snd (ps ^. helps))
 
+-- errOut ------------------------------
+  
+-- | output an error string, with a std prefix (! progname: )
+  
+errOut :: String -> IO()
+errOut err = do
+  let prefix = "! " ++ progName ++ ": "
+      latter = replicate (length prefix) ' '
+  case lines err of
+    (h:t) -> forM_ ((prefix++h)  : fmap (latter++) t) ePutStrLn
+    []    -> return ()
+
 -- getopts_ ----------------------------
 
 -- | parse options & arguments from a list of strings, checking for the required
@@ -652,12 +663,7 @@ getopts_ :: (NFData a, Show a)
           => [Option o] -> ArgArity -> String -> (String -> IO a) -> o -> [String]
          -> IO ([a], o)
 getopts_ cfg' arity argtype parser start cmdline_args  = do
-  let -- prefix errs lines with leading "! " (and subsequent lines with "  ")
-      eprefix :: [String] -> [String]
-      eprefix  = fmap $ \e -> case lines e of
-                                (h:t) -> unlines' (("! "++h) : fmap ("  "++) t)
-                                []    -> ""
-      -- ensure trailing "\n"
+  let -- ensure trailing "\n"
       lp        = fmap (unlines . lines)
       -- parse a with parser, strictly, and return either an error or the parsed
       -- value
@@ -672,21 +678,18 @@ getopts_ cfg' arity argtype parser start cmdline_args  = do
 
   (args_, opts_, errs_, helps_) <- getOptions start cfg' cmdline_args
   -- check for and warn of errors; exit if errors found
-  forM_ (eprefix errs_) ePutStrLn
+  forM_ errs_ errOut
   forM_ (lines (intercalate "--------\n" (lp helps_))) putStrLn
-  when (0 < length errs_) exitUsage
+  when (0 < length errs_)  exitUsage
   when (0 < length helps_) exitUtility
   case check_arity arity args_ of
-    Just e -> do
-      ePutStrLn $ "! " ++ e
-      exitUtility
+    Just e  -> errOut e >> exitUtility
     Nothing -> return ()
 
   -- parse the args, check for errors, maybe warn & exit
   as <- mapM parser' args_ >>= evaluate . force
   let (parse_errs, args_') = partitionEithers as
-  when (0 < length parse_errs)
-       (forM_ (eprefix parse_errs) ePutStrLn >> exitUsage)
+  when (0 < length parse_errs) (forM_ parse_errs errOut >> exitUsage)
   return (args_', opts_)
 
 -- getopts -----------------------------
