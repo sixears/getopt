@@ -161,7 +161,7 @@ errf typ tt s =
 
 opttypename :: RE Char String
 opttypename = string "::" *> 
-                some (psym (\c -> isAlphaNum c || c `elem` "*[?]. "))
+                some (psym (\c -> isAlphaNum c || c `elem` "*[?]., "))
 
 -- | default value regex; /^([<({])[^(inverse \1)](inverse \1)/
 
@@ -241,8 +241,7 @@ setTypeDfStMg str (type_str, mb_default_str, mb_start_str, mb_munge_str) =
                     (error $ printf "may not set start val with type %s (%s)"
                                     type_str str)
                    mb_start_str
-         else
-           set strt (startVal mb_start_str type_str str)
+         else set strt (startVal mb_start_str type_str str)
         )
       . set dflt df_val
       . maybe id setmunge mb_munge_str

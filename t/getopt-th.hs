@@ -70,6 +70,11 @@ $( mkopts "getoptsx" (ArgSome 1 3) "filename"
 --          , "handle1::?filero#read-only file (no default)\nauto-opened"
           , "filero::*ROFile</etc/group>#IO handle (default /etc/group)"
           , "mfilero::?*ROFile#IO handle (no default)\nauto-opened"
+          , "floats1::[,Float]#list of floats\nsplit on ','; no defaults"
+          , "floats2::[Float]<[1.1,2.3]>#list of floats\nfibonacci floats"
+          , "ints1::[,Int]<[2,3,5,7,11,13]>#list of ints\nprime numbers;split ,"
+          , "ints2::[Int]<[1,1,2,3]><[5,8]>#list of ints\nfibonacci ints"
+--          , "lfilero::[*ROFile]</etc/*.conf>#IO handles (default /etc/*.conf)\n"
 --          , "ip::TCP<127.0.0.1:80>#a TCP socket referred by ip address/hostname and port"
 
 --          , "handles::filesro-<[/etc/passwd,/etc/group]>#read-only files\n"
@@ -119,12 +124,16 @@ main :: IO ()
 main = do
   (args, opts) <- getoptsx (return . (readType "Int" :: String -> Int))
   forM_ [ "ARGS: " ++ show args, "OPTS: "  ++ show opts ] putStrLn
-  putStrLn $ "s     : "  ++ show (opts ^. s)
-  putStrLn $ "i     : "  ++ show (opts ^. i)
-  putStrLn $ "mebbei: "  ++ show (opts ^. maybe_i)
-  putStrLn $ "mebbej: "  ++ show (opts ^. mebbej)
-  putStrLn $ "incr  : "  ++ show (opts ^. incr)
-  putStrLn $ "decr  : "  ++ show (opts ^. decr)
-  putStrLn $ "handle: "  ++ show (opts ^. handle)
-  putStrLn $ "filero: "  ++ show (getHandle $ opts ^. filero)
-  putStrLn $ "mfilero: " ++ show (fmap getHandle (opts ^. mfilero))
+  putStrLn $ "s      : "  ++ show (opts ^. s)
+  putStrLn $ "i      : "  ++ show (opts ^. i)
+  putStrLn $ "mebbei : "  ++ show (opts ^. maybe_i)
+  putStrLn $ "mebbej : "  ++ show (opts ^. mebbej)
+  putStrLn $ "incr   : "  ++ show (opts ^. incr)
+  putStrLn $ "decr   : "  ++ show (opts ^. decr)
+  putStrLn $ "handle : "  ++ show (opts ^. handle)
+  putStrLn $ "filero : "  ++ show (getHandle $ opts ^. filero)
+  putStrLn $ "mfilero: "  ++ show (fmap getHandle (opts ^. mfilero))
+  putStrLn $ "floats1: "  ++ show (opts ^. floats1)
+  putStrLn $ "floats2: "  ++ show (opts ^. floats2)
+  putStrLn $ "ints1:   "  ++ show (opts ^. ints1)
+  putStrLn $ "ints2:   "  ++ show (opts ^. ints2)

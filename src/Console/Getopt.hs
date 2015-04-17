@@ -161,9 +161,15 @@ module Console.Getopt
   )
 where
 
--- IO{Thing} ?
--- ; *?Thing / *[Thing]
+-- IO [Thing]
+-- document use of IO ...
 -- hlint; chadd; clean build from scratch
+-- clean up defaults in help; e.g., Data.Maybe.Nothing; strings in quotes, 
+--   GHC.Types.[]
+-- getopt* should take an initial opts value, not use Data.Default.def
+-- use evil no-show class, so things without a show can still be used; show 
+--   should be used where possible (overlapping); but where not, use a string
+--   default (show type? with typeable? or with input string type?)
 -- add summary description of prog
 -- add standard 'how help works; std exit codes' text at end of help
 -- mandatory option; leading '!'; causes error if this option isn't invoked.

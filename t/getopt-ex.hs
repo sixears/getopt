@@ -4,8 +4,9 @@
 
 -- base --------------------------------
 
-import Control.Monad      ( forM_ )
-import System.IO          ( IOMode( ReadMode), openFile )
+import Control.Monad     ( forM_ )
+import System.IO         ( IOMode( ReadMode), openFile )
+import System.IO.Unsafe  ( unsafePerformIO )
 
 -- data-default ------------------------
 
@@ -41,6 +42,8 @@ data Opts = Opts { _string   :: Maybe String
                  , _obool    :: Maybe Bool
                  , _valm0    :: Int
                  , _valm2    :: Maybe Int
+                 , _handle   :: NFHandle
+                 , _mhandle  :: Maybe NFHandle
                  }
   deriving (Show, Eq)
 
@@ -49,8 +52,12 @@ $( makeLenses ''Opts )
 arity :: ArgArity
 arity = ArgSome 1 3
 
+df_handle :: NFHandle
+df_handle = NFHandle $ unsafePerformIO $ openFile "/etc/motd" ReadMode
+
 instance Default Opts where
-  def = Opts Nothing 0 [] False Nothing [] [] Nothing Nothing 1 Nothing
+  def = Opts Nothing 0 [] False Nothing [] [] Nothing Nothing 1 Nothing 
+        df_handle Nothing
 
 optCfg :: [Option Opts]
 optCfg = [ mkOpt "s"  [ "string"  ] (setval return string) "string" "String" 
@@ -61,9 +68,15 @@ optCfg = [ mkOpt "s"  [ "string"  ] (setval return string) "string" "String"
                       "increment" "Increment int" "Int" "0"
          , mkOpt "D"  [ "decrement"  ] (setvalc' int)
                       "decrement" "Decrement int" "Int" "0"
-         , mkOpt "h"  [ "handle"  ]
+         , mkOpt "H"  [ "handles"  ]
                  (setvals (fmap NFHandle . (`openFile` ReadMode)) handles)
-                 "handle" "Handle" "[Handle]" "[]"
+                 "handles" "Handles" "[Handle]" "[]"
+         , mkOpt "h"  [ "handle"  ]
+                 (setvalOW (fmap NFHandle . (`openFile` ReadMode)) handle)
+                 "handle" "Handle" "Handle" "[]"
+         , mkOpt ""  [ "maybe-handle"  ]
+                 (setval (fmap NFHandle . (`openFile` ReadMode)) mhandle)
+                 "maybe handle" "Maybe Handle" "Handle" "[]"
          , mkOpt "b" [ "bool" ] (setvalt bool)
                  (    "the quick brown fox jumped over the lazy dog, then fell "
                    ++ "down because the dog got up just as he was jumping, "

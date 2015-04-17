@@ -8,7 +8,7 @@ License     : BSD
 Maintainer  : haskell@sixears.com
 
 option descriptor access fns
- 
+
 -}
 
 module Console.Getopt.OptDesc
@@ -78,12 +78,12 @@ enactor = OTypes.enactor . view typename
 
 {- | a single name for this optdesc.  Within a valid set of optdescs, this
      should be unique (there is a check elsewhere against creating a set of
-     options with overlapping names).  Will be a multi-character name if 
+     options with overlapping names).  Will be a multi-character name if
      available
  -}
 name :: OptDesc -> String
 name o = let mcs = filter ((1<) . length) $ o ^. names -- multi-character names
-          in case mcs of 
+          in case mcs of
                []   -> head $ o ^. names
                (m:_)-> m
 
@@ -115,7 +115,7 @@ viewE :: String -> Exp
 viewE  l = AppE (VarE 'view) (nameE l)
 
 -- dfGetter ----------------------------
-                 
+
 -- | a lambda that returns the user value, or default if such has been
 --   defined and no user value was supplied
 dfGetter :: OptDesc -> ExpQ
@@ -131,11 +131,19 @@ dfGetter o =
       -- thus \o -> case (view iF o) of
       --              Nothing -> d
       --              Just x  -> x
-      getter d = composeE (AppE (VarE 'fromMaybe) d) (viewE iF)
-                                    
-   in if "Maybe " `isPrefixOf` pclvTypename o && head (optionTypename o) /= '?'
-      then (o ^. dflt) >>= \d -> return (getter d)
-      else return (viewE iF)
+      getter_mb d = composeE (AppE (VarE 'fromMaybe) d) (viewE iF)
+
+      -- same, but for lists; if list is null, then substitute the default
+      getter_ls d = composeE (AppE (VarE 'list_df) d) (viewE iF)
+
+   in if "Maybe " `isPrefixOf` (pclvTypename o) && head (optionTypename o) /= '?'
+      then (o ^. dflt) >>= return . getter_mb
+      else if '[' == head (pclvTypename o)
+           then (o ^. dflt) >>= return . getter_ls
+           else return (viewE iF)
+
+list_df :: [a] -> [a] -> [a]
+list_df df l = if null l then df else l
 
 -- recordFields ----------------------------------------------------------------
 
@@ -150,7 +158,7 @@ recordFields o = ('_' : o ^. lensname, optionTypename o)
 
 {- | the fields passed to mkLensedRecordDef for the parsed record for this
    option; that is, the field name, field type and starting value for the
-   parsed implementation of the option record.  Fields are prefixed with '_' as 
+   parsed implementation of the option record.  Fields are prefixed with '_' as
    they are later lensed.
  -}
 precordDefFields :: OptDesc -> (String, String, ExpQ)

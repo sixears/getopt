@@ -40,13 +40,14 @@ import Language.Haskell.TH  ( Exp ( AppE, ConE, LitE, SigE, VarE )
 
 -- fluffy ------------------------------
 
-import Fluffy.Data.List         ( splitOn )
+import Fluffy.Data.List         ( splitOn, splitOn2 )
 import Fluffy.Language.TH       ( composeE, mAppE, stringE )
-import Fluffy.Language.TH.Type  ( readType )
+import Fluffy.Language.TH.Type  ( readType, strToT )
 
 -- this package --------------------------------------------
 
-import Console.Getopt                   ( setval, setvalc, setvalc', setvals )
+import Console.Getopt                   ( setval, setvalc, setvalc'
+                                        , setvals, setvals' )
 import Console.Getopt.CmdlineParseable  ( FileRO, enactOpt )
 import Console.Getopt.ParseOpt          ( parseAs )
 
@@ -130,8 +131,7 @@ instance Default OptTypes where
 -- | \ t -> [q| readType t :: String -> t |]
 readParser :: String -> Exp
 readParser t = SigE (AppE (VarE 'readType) (LitE (StringL t)))
---                    (AppT (AppT ArrowT (ConT ''String)) (ConT $ mkName t))
-                    (AppT (AppT ArrowT (ConT ''String)) (foldr1 AppT . fmap (ConT . mkName) $ splitOn ' ' t))
+                    (AppT (AppT ArrowT (ConT ''String)) (strToT t))
 
 readInt :: Exp
 readInt = readParser "Int"
@@ -197,7 +197,7 @@ oTypes_ ('?' : '*' : t@(h :_))
                                 ]
                       }
 
-                | otherwise = error $ "no such option type: '" ++ t ++ "'"
+                | otherwise = error $ "no such option type: '?*" ++ t ++ "'"
 
 oTypes_ ('?':t) = def { pclvTypename_   = "Maybe " ++ t
                       , optionTypename_ = '?' : t
@@ -206,28 +206,63 @@ oTypes_ ('?':t) = def { pclvTypename_   = "Maybe " ++ t
                       , enactor_        = VarE 'return
                       }
 
-oTypes_ tt@('[':t) | last t == ']' =
-                 def { pclvTypename_   = tt
-                      , optionTypename_ = tt
-                      , setter_         = VarE 'setvals
-                      , default_        = Just $ ConE '[]
-                      , start_          = Just $ ConE '[]
-                      }
+oTypes_ tt@('[' : '*' : t@(h :_)) 
+  | isUpper h && last t == ']' = 
+      def { pclvTypename_   = '[' : t
+          , optionTypename_ = '[' : t
+          , setter_         = VarE 'setvals
+          , enactor_        = VarE 'enactOpt
+          , parser_         = VarE 'id
+          , default_        = Just $ ConE '[]
+            -- [| maybe (return Nothing) ((fmap Just) . enactOpt) |]
+          , start_          = Just $ ConE '[]
+          }
 
-oTypes_ [] = error "empty typestring"
+  | otherwise = error $ "no such option type: '" ++ tt ++ "'"
+
+oTypes_ ('[':',':t) | last t == ']' = oTypes_ ("[<,>" ++ t)
+oTypes_ tt@('[':'<':s) | '>' `elem` s && last s == ']' =
+        let (d,t') = splitOn2 ">" s
+            t      = init t'
+            list_t = "[" ++ t ++ "]"
+         in def { pclvTypename_   = list_t
+                , optionTypename_ = list_t
+                -- , setter_         = VarE 'setvals
+                , setter_         = AppE (AppE (VarE 'setvals') (stringE d)) 
+                                         (AppE (VarE 'parseAs) (stringE t))
+                , parser_         = readParser list_t
+                , enactor_        = VarE 'return
+                , default_        = Just $ ConE '[]
+                , start_          = Just $ ConE '[]
+                }
+                       | otherwise = error $ "no such option type: '" ++ tt
+                                                                      ++ "'"
+
+oTypes_ tt@('[':t)
+  | not (null t) && isUpper (head t) && last t == ']' =
+        def { pclvTypename_   = tt
+            , optionTypename_ = tt
+            -- , setter_         = VarE 'setvals
+            , setter_         = AppE (VarE 'setvals) (AppE (VarE 'parseAs) (stringE t))
+            , parser_         = readParser tt
+            , enactor_        = VarE 'return
+            , default_        = Just $ ConE '[]
+            , start_          = Just $ ConE '[]
+            }
 
 -- IO types (simple,  value as String)
-oTypes_ ('*' : t@(h :_)) | isUpper h =
-                 def { pclvTypename_   = "Maybe String"
-                     , optionTypename_ = t
-                     , setter_         = setval_as t
-                     , parser_         = VarE 'id
-                     , enactor_        = VarE 'enactOpt
-                     , default_        = Nothing
-                     }
+oTypes_ ('*' : t@(h : _)) 
+  | isUpper h = def { pclvTypename_   = "Maybe String"
+                    , optionTypename_ = t
+                    , setter_         = setval_as t
+                    , parser_         = VarE 'id
+                    , enactor_        = VarE 'enactOpt
+                    , default_        = Nothing
+                    }
 
-                | otherwise = error $ "no such option type: '" ++ t ++ "'"
+  | otherwise = error $ "no such option type: '*" ++ t ++ "'"
 
+oTypes_ [] = error "empty typestring"
 
 oTypes_ t@(h:_) | isUpper h =
                  def { pclvTypename_   = "Maybe " ++ t
