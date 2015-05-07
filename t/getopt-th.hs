@@ -23,7 +23,7 @@ import Fluffy.Language.TH.Type  ( readType )
 
 -- this package --------------------------------------------
 
-import Console.Getopt    ( ArgArity( ArgSome ), mkOpt )
+import Console.Getopt    ( ArgArity( ArgSome ), getopts )
 import Console.GetoptTH  ( CmdlineParseable(..), FileRO, mkopts )
 
 --------------------------------------------------------------------------------
@@ -70,9 +70,9 @@ $( mkopts "getoptsx" (ArgSome 1 3) "filename"
 --          , "handle1::?filero#read-only file (no default)\nauto-opened"
           , "filero::*ROFile</etc/group>#IO handle (default /etc/group)"
           , "mfilero::?*ROFile#IO handle (no default)\nauto-opened"
-          , "floats1::[,Float]#list of floats\nsplit on ','; no defaults"
+--          , "floats1::[,Float]#list of floats\nsplit on ','; no defaults"
           , "floats2::[Float]<[1.1,2.3]>#list of floats\nfibonacci floats"
-          , "ints1::[,Int]<[2,3,5,7,11,13]>#list of ints\nprime numbers;split ,"
+--          , "ints1::[,Int]<[2,3,5,7,11,13]><[9,8]>#list of ints\nprimes;split ,"
           , "ints2::[Int]<[1,1,2,3]><[5,8]>#list of ints\nfibonacci ints"
 --          , "lfilero::[*ROFile]</etc/*.conf>#IO handles (default /etc/*.conf)\n"
 --          , "ip::TCP<127.0.0.1:80>#a TCP socket referred by ip address/hostname and port"
@@ -133,7 +133,8 @@ main = do
   putStrLn $ "handle : "  ++ show (opts ^. handle)
   putStrLn $ "filero : "  ++ show (getHandle $ opts ^. filero)
   putStrLn $ "mfilero: "  ++ show (fmap getHandle (opts ^. mfilero))
-  putStrLn $ "floats1: "  ++ show (opts ^. floats1)
+--  putStrLn $ "floats1: "  ++ show (opts ^. floats1)
   putStrLn $ "floats2: "  ++ show (opts ^. floats2)
-  putStrLn $ "ints1:   "  ++ show (opts ^. ints1)
+--  putStrLn $ "ints1:   "  ++ show (opts ^. ints1)
   putStrLn $ "ints2:   "  ++ show (opts ^. ints2)
+  getopts getoptsx_ (ArgSome 1 3) "filename" return >>= print

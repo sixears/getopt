@@ -84,7 +84,7 @@ import Fluffy.Data.String              ( ucfirst )
 import Fluffy.Language.TH              ( appTIO, assignN, composeApE, composeE
                                        , infix2E , listOfN, mAppE, mAppEQ
                                        , mkSimpleTypedFun, nameEQ, stringEQ
-                                       , tsArrows, tupleL
+                                       , tsArrows, tupleL, pprintQ
                                        )
 import Fluffy.Language.TH.Record       ( mkLensedRecord, mkLensedRecordDef )
 import Fluffy.Sys.Exit                 ( exitUsage )
@@ -352,7 +352,6 @@ mkopts getoptName arity argtype optcfgs = do
                                   (fmap precordDefFields optdescs)
                                   [''Show]
 
-
       -- create a record to hold final values to pass back to the user;
       -- (data Getoptsx = Getoptsx { ... } above)
       record :: DecsQ
@@ -584,7 +583,7 @@ mkopt optdesc =
       --       (optdesc ^. descn)
       --       (pclvTypename optdesc)
       --       (strtTxt optdesc)
-      mAppEQ [ nameEQ "mkOpt"
+      mAppEQ [ return $ VarE 'mkOpt
              , appE (varE 'concat) (lift shorts) -- short options
              , lift longs                        -- long  options
              , optSetVal optdesc                 -- handler (setval*)

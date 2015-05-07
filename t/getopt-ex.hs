@@ -25,9 +25,10 @@ import Fluffy.Language.TH.Type  ( readType )
 import Console.Getopt    ( ArgArity( ArgSome ), HelpOpts(..)
                          , NFHandle( NFHandle ), Option
                          , getopts, helpme, mkOpt, mkOptsB
-                         , setvalOW, setval, setvalc, setvalc', setvals
+                         , setvalOW, setval, setvalc, setvalc'
                          , setvalm, setvalm_, setvalm'
-                         , setvals', setvalt, setvalAList'
+                         , setvals, setvals', setvals_, setvals'_
+                         , setvalt, setvalAList'
                          )
 --------------------------------------------------------------------------------
 
@@ -44,6 +45,7 @@ data Opts = Opts { _string   :: Maybe String
                  , _valm2    :: Maybe Int
                  , _handle   :: NFHandle
                  , _mhandle  :: Maybe NFHandle
+                 , _mb_list  :: Maybe [Int]
                  }
   deriving (Show, Eq)
 
@@ -57,7 +59,7 @@ df_handle = NFHandle $ unsafePerformIO $ openFile "/etc/motd" ReadMode
 
 instance Default Opts where
   def = Opts Nothing 0 [] False Nothing [] [] Nothing Nothing 1 Nothing 
-        df_handle Nothing
+        df_handle Nothing Nothing
 
 optCfg :: [Option Opts]
 optCfg = [ mkOpt "s"  [ "string"  ] (setval return string) "string" "String" 
@@ -91,6 +93,10 @@ optCfg = [ mkOpt "s"  [ "string"  ] (setval return string) "string" "String"
                  "int list"  "[Int]" "[Int]" "[]"
          , mkOpt "c" [] (setvals' "," (return . readType "Int") list)
                  "comma-ilist" "a comma-separated list of integers" "[Int]" "[]"
+         , mkOpt "M" [] (setvals_ (return . readType "Int") mb_list)
+                 "maybe int list" "?[Int]" "?[Int]" "Nothing"
+         , mkOpt "" ["mil"] (setvals'_ "," (return . readType "Int") mb_list)
+                 "maybe int list, with commas" "?[Int]" "?[Int]" "Nothing"
          , mkOpt "n" [] (setval (return . readType "Int") mebbei) 
                   "maybe int" "maybe int'" "?Maybe" ""
          , mkOpt "a" [ "alist" ] (setvalAList' "=>"

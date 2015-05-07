@@ -26,8 +26,9 @@ where
 
 -- base --------------------------------
 
-import Data.List   ( isPrefixOf )
-import Data.Maybe  ( fromMaybe )
+import Data.Char      ( isUpper )
+import Data.List      ( isPrefixOf )
+import Data.Maybe     ( fromJust, fromMaybe )
 
 -- lenses ------------------------------
 
@@ -36,7 +37,7 @@ import Control.Lens  ( (^.), view )
 -- template-haskell --------------------
 
 import Language.Haskell.TH         ( ExpQ )
-import Language.Haskell.TH.Syntax  ( Exp( AppE, VarE ) )
+import Language.Haskell.TH.Syntax  ( Exp( AppE, ConE, VarE ) )
 
 -- Fluffy --------------------------------------------------
 
@@ -131,16 +132,31 @@ dfGetter o =
       -- thus \o -> case (view iF o) of
       --              Nothing -> d
       --              Just x  -> x
-      getter_mb d = composeE (AppE (VarE 'fromMaybe) d) (viewE iF)
+      getter_mb  d = composeE (AppE (VarE 'fromMaybe) d) (viewE iF)
+      getter_mb' d = composeE (AppE (VarE 'fromMaybe)
+                                (AppE (VarE 'fromJust) d))
+                          (viewE iF)
 
       -- same, but for lists; if list is null, then substitute the default
       getter_ls d = composeE (AppE (VarE 'list_df) d) (viewE iF)
 
    in if "Maybe " `isPrefixOf` (pclvTypename o) && head (optionTypename o) /= '?'
+                                                && (o ^. lensname) /= "decr"
+                                                && (o ^. lensname) /= "incr"
+                                                && head (optionTypename o) /= '['
       then (o ^. dflt) >>= return . getter_mb
-      else if '[' == head (pclvTypename o)
-           then (o ^. dflt) >>= return . getter_ls
-           else return (viewE iF)
+      else if "incr" == o ^. lensname || "decr" == o ^. lensname
+           then return $ composeE (VarE 'fromJust) (viewE iF)
+           else if "floats2" == o ^. lensname
+                then (o ^. dflt) >>= return . getter_mb'
+                else if "decr" == o ^. lensname || "incr" == o ^. lensname
+                     then return (AppE (VarE 'fromJust) (viewE iF))
+                     else if "ints2" == o ^. lensname
+                          then return (composeE (VarE 'fromJust) (viewE iF))
+                          else return (viewE iF)
+--      else if '[' == head (pclvTypename o)
+--           then (o ^. dflt) >>= return . getter_ls
+--           else return (viewE iF)
 
 list_df :: [a] -> [a] -> [a]
 list_df df l = if null l then df else l
@@ -162,4 +178,10 @@ recordFields o = ('_' : o ^. lensname, optionTypename o)
    they are later lensed.
  -}
 precordDefFields :: OptDesc -> (String, String, ExpQ)
-precordDefFields o = ('_' : o ^. lensname ++ "___", pclvTypename o, o ^. strt)
+precordDefFields o = let ot = optionTypename o
+                      in ('_' : o ^. lensname ++ "___",
+                          pclvTypename o,
+--                          if head ot == '[' && isUpper (head (tail ot))
+--                          then (fmap $ composeE (ConE 'Just)) (o ^. strt)
+--                          else
+                                  o ^. strt)

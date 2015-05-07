@@ -62,6 +62,10 @@ data Getoptsx = Getoptsx { _s       :: String
                          , _handle  :: HandleR
                          , _filero  :: FileRO
                          , _mfilero :: Maybe FileRO
+--                         , _floats1 :: [Float]
+                         , _floats2 :: [Float]
+--                         , _ints1   :: [Int]
+                         , _ints2   :: [Int]
                          }
   deriving (Eq, Show, Read)
 
@@ -134,6 +138,10 @@ main = do
                        , _handle  = HandleR "/etc/motd"
                        , _filero  = FRO "/etc/group"
                        , _mfilero = Nothing
+--                       , _floats1 = []
+                       , _floats2 = [1.1,2.3]
+--                       , _ints1 = [2,3,5,7,11,13]
+                       , _ints2 = [1,1,2,3]
                        }
       items = Map.fromList [ ("i", "4"), ("s", "\"\"")
                            , ("mebbei", "Nothing")
@@ -142,6 +150,10 @@ main = do
                            , ("handle", "FRO: {handle: /etc/motd}")
                            , ("filero", "{handle: /etc/group}")
                            , ("mfilero","Nothing")
+--                           , ("floats1", "[]")
+                           , ("floats2", "[1.1,2.3]")
+--                           , ("ints1", "[2,3,5,7,11,13]")
+                           , ("ints2", "[1,1,2,3]")
                            ]
 
   (fmap concat . sequence)
@@ -192,10 +204,10 @@ main = do
                       , _filero = FRO         "/etc/ld.so.conf"
                       , _mfilero = Just $ FRO "/etc/hostname"
                       })
-            (             Map.fromList [ ("filero", "{handle: /etc/ld.so.conf}")
-                                       , ("mfilero","Just {handle: /etc/hostname}")
-                                       , ("handle", "FRO: {handle: /etc/passwd}")
-                                       ]
+            (            Map.fromList [ ("filero", "{handle: /etc/ld.so.conf}")
+                                      , ("mfilero","Just {handle: /etc/hostname}")
+                                      , ("handle", "FRO: {handle: /etc/passwd}")
+                                      ]
              `Map.union` items)
             []
 

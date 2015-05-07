@@ -153,19 +153,35 @@ module Console.Getopt
   , helpme, helpme', mkOpt, mkOptsB
 
   -- * setval* Variants
-  , setvalOW, setval, setvalc, setvalc', setvalm, setvalm', setvalm_, setvalm__
-  , setvals, setvals', setvalt, setvalf, setval', setvalAList, setvalAList'
+  , setvalOW, setval
+  , setvalc, setvalc_, setvalc', setvalc'_
+  , setvalm, setvalm', setvalm_, setvalm__
+  , setvals, setvals'
+  , setvalt, setvalf, setval', setvalAList, setvalAList'
 
   -- * useful extras
-  , NFHandle( NFHandle ), errOut, progName, unhandle
+  , NFHandle( NFHandle ), errOut, progName, unhandle, lensLens
   )
 where
 
+
+-- add dfGetter tests to t/OptDesc.hs
+-- add start, default tests for ints2
+-- make TH/OTypes always use Maybes for simplicity
+-- get rid of evil nested if in OptDesc::dfFetter
+-- upgrade to 7.10
+-- make oTypes_ much simpler; put the records elsewhere, have a simple case
+--   or multiple-clauses (all on one page), get the records to inherit (esp. 
+--   incr, decr)
+-- re-factor type{Start,Default}E, {start,default}Val to expose commonality
 -- IO [Thing]
 -- document use of IO ...
+-- use mtl not transformers
 -- hlint; chadd; clean build from scratch
 -- clean up defaults in help; e.g., Data.Maybe.Nothing; strings in quotes, 
 --   GHC.Types.[]
+-- --x, ---x, seem to "work"!; additional leading hyphens "work" for long
+--   options also
 -- getopt* should take an initial opts value, not use Data.Default.def
 -- use evil no-show class, so things without a show can still be used; show 
 --   should be used where possible (overlapping); but where not, use a string
@@ -224,6 +240,7 @@ setValue'          -- optname, mb_optval, args, old_value
  |  |  |
  |  |  +-setvals'  -- :: [b] ; appends each new value; split on delimiter;
  |  |                          String, String -> IO b
+ |  |
  |  +-setvalm'     -- :: b ; take an optionally-specified value (-o=value)
  |    |                      also sees the prior lensed-to value
  |    +-setvalm    -- :: b ; call at most once
@@ -245,8 +262,9 @@ import Control.Exception  ( SomeException, evaluate, try )
 import Control.Monad      ( foldM, forM_, unless, when )
 import Data.Char          ( isAlphaNum )
 import Data.Either        ( partitionEithers )
+import Data.Functor       ( (<$>) )
 import Data.List          ( intercalate, partition )
-import Data.Maybe         ( catMaybes, fromJust )
+import Data.Maybe         ( catMaybes, fromJust, fromMaybe )
 import System.Environment ( getArgs, getProgName )
 import System.IO          ( Handle )
 import System.IO.Unsafe   ( unsafeDupablePerformIO )
@@ -262,7 +280,7 @@ import Control.DeepSeq  ( NFData, force )
 
 -- lens --------------------------------
 
-import Control.Lens  ( (&), (^.), (.~), (%~), Lens', makeLenses, view )
+import Control.Lens  ( (&), (^.), (.~), (%~), Lens', makeLenses, view, set )
 
 -- local packages ------------------------------------------
 
@@ -740,22 +758,44 @@ setval f = setval' (\s o -> case o of
 
 -- setvalc ---------------------------------------------------------------------
 
+-- | Convert the target type of a lens; that is, given ways to convert from a to
+--   b and back again; take a lens to a value of a and give a lens to a value of
+--   b.  Thus we are looking at a lens through a lens.
+
+-- lensLens :: Lens' Temp a -> (a -> b) -> (b -> a) -> Lens' Temp b
+lensLens :: (a -> b) -> (b -> a) -> Lens' x a -> Lens' x b
+lensLens aToB bToA l functor p =
+  ((p &) . (set l . bToA)) <$> (functor (aToB (p ^. l)))
+
 -- | setval for counter values; increments on each call
 
 setvalc :: Lens' o Int -> OptParse o
 setvalc = setValue ValNone (\ _ _ c -> return $ c + 1)
+
+mi :: Lens' a (Maybe b) -> Lens' a b
+mi = lensLens fromJust Just
+
+setvalc_ :: Lens' o (Maybe Int) -> OptParse o
+-- setvalc_ = setValue ValNone (\ _ _ c -> return $ maybe (Just 1) (Just . (+1)) c)
+-- setvalc_ = setValue ValNone (\ _ _ c -> return . Just . (+1) $ fromMaybe 0 c)
+-- setvalc . mi no workee.  See GHC notes on impredicative types and ($)
+setvalc_ l = setvalc $ mi l
+-- setvalc_ = fmap (fromMaybe 0) setvalc
 
 -- | setval for counter values; decrements on each call
 
 setvalc' :: Lens' o Int -> OptParse o
 setvalc' = setValue ValNone (\ _ _ c -> return $ c - 1)
 
+setvalc'_ :: Lens' o (Maybe Int) -> OptParse o
+setvalc'_ = setValue ValNone (\ _ _ c -> return $ maybe (Just (-1)) (Just . (\x -> x - 1)) c)
+
 -- setvals ---------------------------------------------------------------------
 
 -- | setValue for many-valued args, thus appending each new value to a list
 
 setvals :: (NFData b) => (String -> IO b) -> Lens' o [b] -> OptParse o
-setvals f = setval' (\ i is -> f i >>= \ i' -> return $ is ++ [i'])
+setvals f = setval' (\ i is -> f i >>= return . (is ++) . (:[]))
 
 -- setvals' --------------------------------------------------------------------
 
@@ -767,7 +807,7 @@ setvals' :: (NFData b)
          -> (String -> IO b)           -- ^ how to parse individual values
          -> Lens' o [b] -> OptParse o
 setvals' s f =
-  setval' (\ i is -> mapM f (splitOnL s i) >>= \i' -> return $ is ++ i')
+  setval' (\ i is -> mapM f (splitOnL s i) >>= return . (is ++))
 
 -- setval' ---------------------------------------------------------------------
 

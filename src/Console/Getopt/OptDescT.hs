@@ -197,7 +197,9 @@ startVal :: Maybe String -- ^ start value, passed in by user between <>
          -> String       -- ^ user-requested option type
          -> String       -- ^ full user option type text
          -> ExpQ
-startVal s t str = maybe (typeStartE t str) (readTS (optionTypename t)) s
+startVal s t str = maybe (typeStartE t str) 
+--                         (readTS (optionTypename t)) s
+                         (return . AppE (parser t) .LitE . StringL) s
 
 -- typeDefaultE -----------------------
 
