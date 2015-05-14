@@ -154,7 +154,7 @@ module Console.Getopt
 
   -- * setval* Variants
   , setvalOW, setval
-  , setvalc, setvalc_, setvalc', setvalc'_
+  , setvalc, setvalc'
   , setvalm, setvalm', setvalm_, setvalm__
   , setvals, setvals'
   , setvalt, setvalf, setval', setvalAList, setvalAList'
@@ -171,22 +171,22 @@ where
 -- make TH/OTypes always use Maybes for simplicity
 -- get rid of evil nested if in OptDesc::dfFetter
 -- upgrade to 7.10
--- create TH Render : takes a (Q) Exp, produces a string that is the deparsed 
+-- create TH Render : takes a (Q) Exp, produces a string that is the deparsed
 --   code (hopefully)
 -- make oTypes_ much simpler; put the records elsewhere, have a simple case
---   or multiple-clauses (all on one page), get the records to inherit (esp. 
+--   or multiple-clauses (all on one page), get the records to inherit (esp.
 --   incr, decr)
 -- re-factor type{Start,Default}E, {start,default}Val to expose commonality
 -- IO [Thing]
 -- document use of IO ...
 -- use mtl not transformers
 -- hlint; chadd; clean build from scratch
--- clean up defaults in help; e.g., Data.Maybe.Nothing; strings in quotes, 
+-- clean up defaults in help; e.g., Data.Maybe.Nothing; strings in quotes,
 --   GHC.Types.[]
 -- --x, ---x, seem to "work"!; additional leading hyphens "work" for long
 --   options also
 -- getopt* should take an initial opts value, not use Data.Default.def
--- use evil no-show class, so things without a show can still be used; show 
+-- use evil no-show class, so things without a show can still be used; show
 --   should be used where possible (overlapping); but where not, use a string
 --   default (show type? with typeable? or with input string type?)
 -- add summary description of prog
@@ -665,9 +665,9 @@ getOptions start optCfg argv = do
           reverse (ps ^. errs), fmap snd (ps ^. helps))
 
 -- errOut ------------------------------
-  
+
 -- | output an error string, with a std prefix (! progname: )
-  
+
 errOut :: String -> IO()
 errOut err = do
   let prefix = "! " ++ progName ++ ": "

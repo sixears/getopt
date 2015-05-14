@@ -24,6 +24,7 @@ import Data.Char            ( isAlphaNum, isDigit, isUpper )
 import Data.Functor         ( (<$>) )
 import Data.List            ( intercalate )
 import Data.Maybe           ( fromMaybe )
+import Debug.Trace          ( trace )
 import Text.Printf          ( printf )
 
 -- data-default ------------------------
@@ -237,15 +238,16 @@ setTypeDfStMg str (type_str, mb_default_str, mb_start_str, mb_munge_str) =
         (if startIsDefault type_str
          then -- start == default, so it's an error for start to be independently
               -- defined by he user
-              maybe (set strt (return $ ConE 'Nothing)) -- (set strt df_val)
+              maybe (set strt df_val) -- (set strt (return $ ConE 'Nothing)) -- (set strt df_val)
                     (error $ printf "may not set start val with type %s (%s)"
                                     type_str str)
                    mb_start_str
          else let -- start string if specified, else default string if specified
                   mb_strt_dflt_str = maybe mb_default_str Just mb_start_str
                   -- value to set OptDesc strt to
-                  strt_val         = startVal mb_default_str type_str str
-               in set strt strt_val
+                  strt_val         = startVal mb_strt_dflt_str type_str str
+               in trace ("strt_val: " ++ pprintQ strt_val ++ "\tmb_strt_dflt_str: '" ++ show mb_strt_dflt_str ++ "'") $
+                  set strt strt_val
         )
       . set dflt df_val
       . maybe id setmunge mb_munge_str

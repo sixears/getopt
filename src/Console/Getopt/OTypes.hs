@@ -63,8 +63,8 @@ import Fluffy.Language.TH.Type  ( readType, strToT )
 
 -- this package --------------------------------------------
 
-import Console.Getopt                   ( setval, setvalc_
-                                        , setvalc'_, setvals, setvals'
+import Console.Getopt                   ( setval, setvalc
+                                        , setvalc', setvals, setvals'
 
                                         , lensLens, OptParse
                                         )
@@ -182,6 +182,11 @@ setval_as t = -- [q| setval (parseAs t) |]
 --   value of the lens will be implied (being the first arg); the given value
 --   then be appended to the underlying list as for setvals.
 
+-- note that things like @ setvalc . mblens @ won't work.  This is due to issues
+-- with Impredicative Types; see GHC notes on this and ($), which is handled 
+-- specially (hence @ \x -> setvalc $ mblens x @ would work where 
+-- @ setvalc . mblens @ does not)
+
 setvals_ :: (NFData b)
          => (String -> IO b) -> [b] -> Lens' o (Maybe [b]) -> OptParse o
 setvals_ f b l = setvals f $ mblens b l
@@ -192,6 +197,16 @@ setvals_ f b l = setvals f $ mblens b l
 mblens :: b -> Lens' a (Maybe b) -> Lens' a b
 mblens b = lensLens (fromMaybe b) Just
 
+setvalc_ :: Int -> Lens' o (Maybe Int) -> OptParse o
+setvalc_ b l = setvalc $ mblens b l
+setvalc'_ :: Int -> Lens' o (Maybe Int) -> OptParse o
+setvalc'_ b l = setvalc' $ mblens b l
+
+-- setvalc_ = fmap (fromMaybe 0) setvalc
+
+-- setvalc'_ :: Lens' o (Maybe Int) -> OptParse o
+-- setvalc'_ = setValue ValNone (\ _ _ c -> return $ maybe (Just (-1)) (Just . (\x -> x - 1)) c)
+
 ------------------------------------------------------------
 
 oTypes :: String -> OptTypes
@@ -201,8 +216,9 @@ oTypes_ :: String -> OptTypes
 
 oTypes_ "incr" = def { pclvTypename_   = "Maybe Int"
                      , optionTypename_ = "Int"
-                     , setter_         = VarE 'setvalc_
+--                     , setter_         = VarE 'setvalc_
                       -- we need a parser to parse a potential default value
+                     , setter_st_      = Just $ VarE 'setvalc_
                      , parser_         = readInt
                      , enactor_        = VarE 'return
                      , default_        = Just (LitE (IntegerL 0))
@@ -213,7 +229,8 @@ oTypes_ "incr" = def { pclvTypename_   = "Maybe Int"
 
 oTypes_ "decr" = def { pclvTypename_   = "Maybe Int"
                      , optionTypename_ = "Int"
-                     , setter_         = VarE 'setvalc'_
+--                     , setter_         = VarE 'setvalc'_
+                     , setter_st_      = Just $ VarE 'setvalc'_
                       -- we need a parser to parse a potential default value
 --                     , parser_         = composeE (ConE 'Just) readInt
                      , parser_         = readInt
@@ -290,15 +307,14 @@ oTypes_ tt@('[':t)
   | not (null t) && (isUpper (head t) || '[' == head t) && last t == ']' =
         def { pclvTypename_   = "Maybe " ++ tt
             , optionTypename_ = tt
-            , setter_         = -- [q| (setvals_ []) (parseAs t) |]
-                                AppE (AppE (VarE 'setvals_)
-                                           (AppE (VarE 'parseAs) (stringE tt)))
-                                     (ListE [])
+--            , setter_         = -- [q| (setvals_ []) (parseAs t) |]
+--                                AppE (AppE (VarE 'setvals_)
+--                                           (AppE (VarE 'parseAs) (stringE tt)))
+--                                     (ListE [])
 
-            , setter_st_      = -- [q| (setvals_ []) (parseAs t) |]
+            , setter_st_      = -- [q| setvals_ (parseAs t) |]
                                 Just $ AppE (VarE 'setvals_)
                                             (AppE (VarE 'parseAs) (stringE tt))
---             , parser_         = composeE (ConE 'Just) (readParser tt)
             , parser_         = readParser tt
             , enactor_        = VarE 'return
             , default_        = Just (ConE 'Nothing) -- Just $ (AppE (ConE 'Just) (ConE '[]))

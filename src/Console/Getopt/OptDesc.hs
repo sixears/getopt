@@ -114,9 +114,11 @@ optSetVal :: OptDesc -> ExpQ
 optSetVal o =
   case setter_st o of
     -- new style, pass the start value
-    Just s_st ->  trace ("dflt: " ++ pprintQ (o ^. dflt)) $ 
+    Just s_st ->  trace ("lensname: " ++ o ^. lensname ) $
+                  trace ("dflt: " ++ pprintQ (o ^. dflt)) $ 
                   trace ("strt: " ++ pprintQ (o ^. strt)) $ 
-                  (o ^. dflt) >>= \d -> return $ AppE (AppE s_st d)
+                  (o ^. strt) >>= \d -> return $ AppE (AppE s_st d)
+--                  (o ^. dflt) >>= \d -> return $ AppE (AppE s_st d)
                                                      (nameE $ pclvField o)
     -- old style, no start value
     Nothing   -> return $ AppE (setter o) (nameE $ pclvField o)
