@@ -166,10 +166,13 @@ where
 
 
 -- add dfGetter tests to t/OptDesc.hs
+-- complete all listed tests for t/OptDesc.hs
 -- add start, default tests for ints2
 -- make TH/OTypes always use Maybes for simplicity
 -- get rid of evil nested if in OptDesc::dfFetter
 -- upgrade to 7.10
+-- create TH Render : takes a (Q) Exp, produces a string that is the deparsed 
+--   code (hopefully)
 -- make oTypes_ much simpler; put the records elsewhere, have a simple case
 --   or multiple-clauses (all on one page), get the records to inherit (esp. 
 --   incr, decr)
@@ -264,7 +267,7 @@ import Data.Char          ( isAlphaNum )
 import Data.Either        ( partitionEithers )
 import Data.Functor       ( (<$>) )
 import Data.List          ( intercalate, partition )
-import Data.Maybe         ( catMaybes, fromJust, fromMaybe )
+import Data.Maybe         ( catMaybes, fromJust )
 import System.Environment ( getArgs, getProgName )
 import System.IO          ( Handle )
 import System.IO.Unsafe   ( unsafeDupablePerformIO )

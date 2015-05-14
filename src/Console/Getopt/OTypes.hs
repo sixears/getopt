@@ -18,7 +18,7 @@ embedded 'option types' for use in OptDesc descriptor strings
 -}
 
 module Console.Getopt.OTypes
-  ( pclvType, pclvTypename, parser, setter, enactor, startIsDefault
+  ( pclvType, pclvTypename, parser, setter, setter_st, enactor, startIsDefault
   , typeDefault, typeStart, optionTypename, optionType )
 where
 
@@ -28,12 +28,11 @@ where
 -- -) adjust the setter to use the maybeized setter
 -- -) compose Just onto the front of the parser
 -- -) compose Just onto the front of the defaults
-  
+
 -- base --------------------------------
 
 import Data.Char   ( isUpper )
-import Data.Maybe  ( fromJust, fromMaybe )
-import Data.Ratio  ( (%) )
+import Data.Maybe  ( fromMaybe )
 
 -- data-default ------------------------
 
@@ -49,9 +48,8 @@ import Control.Lens  ( Lens' )
 
 -- template-haskell --------------------
 
-import Language.Haskell.TH  ( Exp ( AppE, ConE, InfixE, LamE, ListE, LitE, SigE, VarE )
-                            , Lit ( IntegerL, RationalL, StringL               )
-                            , Pat ( VarP                                       )
+import Language.Haskell.TH  ( Exp ( AppE, ConE, LitE, ListE, SigE, VarE        )
+                            , Lit ( IntegerL, StringL                          )
                             , Type( AppT, ArrowT, ConT                         )
                             , ExpQ
                             , mkName
@@ -60,14 +58,14 @@ import Language.Haskell.TH  ( Exp ( AppE, ConE, InfixE, LamE, ListE, LitE, SigE,
 -- fluffy ------------------------------
 
 import Fluffy.Data.List         ( splitOn2 )
-import Fluffy.Language.TH       ( composeApE, composeE, mAppE, stringE )
+import Fluffy.Language.TH       ( composeE, mAppE, stringE )
 import Fluffy.Language.TH.Type  ( readType, strToT )
 
 -- this package --------------------------------------------
 
-import Console.Getopt                   ( setval, setvalc_, setvalc
-                                        , setvalc', setvalc'_, setvals, setvals'
-                                                                       
+import Console.Getopt                   ( setval, setvalc_
+                                        , setvalc'_, setvals, setvals'
+
                                         , lensLens, OptParse
                                         )
 import Console.Getopt.CmdlineParseable  ( FileRO, enactOpt )
@@ -98,10 +96,19 @@ data OptTypes = OptTypes { {- | the type used for the PCLV container field.
                                 similar to set the value in the record.
                             -}
                          , setter_          :: Exp -- e.g., [q| setval return |]
+                           {- | how to take a value that has been parsed by
+                                parser_, and store it into the PCLV record.
+                                Thus, no IO.  This one will need setval or
+                                similar to set the value in the record.
+                            -}
+                         , setter_st_       :: Maybe Exp
                            {- | how to parse a String to generate a value; as an
                                 Exp (:: String -> optionType).  This also
                                 includes parsing a default value given in the
-                                string to mkopts
+                                string to mkopts.  But the _st_ is because we
+                                pass in a start value to initialize the lens
+                                when it is called (but not beforehand, so we
+                                may determine an uncalled opt)
                             -}
                          , parser_          :: Exp -- e.g., readParser "<type>"
                            {- | how to take a value, perform IO on it to provide
@@ -140,6 +147,7 @@ instance Default OptTypes where
   def = OptTypes { pclvTypename_   = "-UNIMPLEMENTED IMPLEMENTATION TYPE-"
                  , optionTypename_ = "-UNIMPLEMENTED OPTION TYPE-"
                  , setter_         = stringE "-UNIMPLEMENTED SETTER-"
+                 , setter_st_      = Nothing
                  , parser_         = stringE "-UNIMPLEMENTED PARSER-"
                  , enactor_        = stringE "-UNIMPLEMENTED ENACTOR-"
                  , default_        = Just $ ConE 'Nothing
@@ -168,20 +176,21 @@ setval_as :: String -> Exp
 setval_as t = -- [q| setval (parseAs t) |]
               AppE (VarE 'setval) (AppE (VarE 'parseAs) (stringE t))
 
-mi :: Lens' a (Maybe b) -> Lens' a b
-mi = lensLens fromJust Just
-
 -- setvals_ --------------------------------------------------------------------
 
--- | like setvals, but writes to a Maybe List; if Maybe is Nothing, then a 
---   Just [x] will be created; else values will be appended to the list within
---   the Just.
+-- | like setvals, but writes to a Maybe List; if Maybe is Nothing, then a start
+--   value of the lens will be implied (being the first arg); the given value
+--   then be appended to the underlying list as for setvals.
 
-setvals_ :: (NFData b) => (String -> IO b) -> Lens' o (Maybe [b]) -> OptParse o
-setvals_ f l = setvals f $ mid [] l -- mi l
+setvals_ :: (NFData b)
+         => (String -> IO b) -> [b] -> Lens' o (Maybe [b]) -> OptParse o
+setvals_ f b l = setvals f $ mblens b l
 
-mid :: b -> Lens' a (Maybe b) -> Lens' a b
-mid b = lensLens (fromMaybe b) Just
+-- | convert a lens to a @(Maybe b)@ to a lens to a @b@ by providing a defaulted
+--   value lest the lens target is Nothing
+
+mblens :: b -> Lens' a (Maybe b) -> Lens' a b
+mblens b = lensLens (fromMaybe b) Just
 
 ------------------------------------------------------------
 
@@ -194,11 +203,10 @@ oTypes_ "incr" = def { pclvTypename_   = "Maybe Int"
                      , optionTypename_ = "Int"
                      , setter_         = VarE 'setvalc_
                       -- we need a parser to parse a potential default value
-                     , parser_         = composeE (ConE 'Just) readInt
+                     , parser_         = readInt
                      , enactor_        = VarE 'return
-                     , default_        = Just (AppE (ConE 'Just) 
-                                                    (LitE (IntegerL 0)))
-                     , start_          = Just (AppE (ConE 'Just) 
+                     , default_        = Just (LitE (IntegerL 0))
+                     , start_          = Just (AppE (ConE 'Just)
                                                     (LitE (IntegerL 0)))
                      , startIsDefault_ = True
                      }
@@ -207,10 +215,10 @@ oTypes_ "decr" = def { pclvTypename_   = "Maybe Int"
                      , optionTypename_ = "Int"
                      , setter_         = VarE 'setvalc'_
                       -- we need a parser to parse a potential default value
-                     , parser_         = composeE (ConE 'Just)
-                                         readInt
+--                     , parser_         = composeE (ConE 'Just) readInt
+                     , parser_         = readInt
                      , enactor_        = VarE 'return
-                     , default_        = Just (AppE (ConE 'Just) 
+                     , default_        = Just (AppE (ConE 'Just)
                                                     (LitE (IntegerL 0)))
                      , start_          = Just (AppE (ConE 'Just) (LitE (IntegerL 0)))
                      , startIsDefault_ = True
@@ -247,48 +255,54 @@ oTypes_ ('?':t) = def { pclvTypename_   = "Maybe " ++ t
                       , enactor_        = VarE 'return
                       }
 
-oTypes_ tt@('[' : '*' : t@(h :_))
-  | isUpper h && last t == ']' =
-      def { pclvTypename_   = '[' : t
-          , optionTypename_ = '[' : t
-          , setter_         = VarE 'setvals
-          , enactor_        = VarE 'enactOpt
-          , parser_         = VarE 'id
-          , default_        = Just $ ConE '[]
-          , start_          = Just $ ConE '[]
-          }
+--Y oTypes_ tt@('[' : '*' : t@(h :_))
+--Y   | isUpper h && last t == ']' =
+--Y       def { pclvTypename_   = '[' : t
+--Y           , optionTypename_ = '[' : t
+--Y           , setter_         = VarE 'setvals
+--Y           , enactor_        = VarE 'enactOpt
+--Y           , parser_         = VarE 'id
+--Y           , default_        = Just $ ConE '[]
+--Y           , start_          = Just $ ConE '[]
+--Y           }
+--Y
+--Y   | otherwise = error $ "no such option type: '" ++ tt ++ "'"
 
-  | otherwise = error $ "no such option type: '" ++ tt ++ "'"
-
-oTypes_ ('[':',':t) | last t == ']' = oTypes_ ("[<,>" ++ t)
-oTypes_ tt@('[':'<':s) | '>' `elem` s && last s == ']' =
-        let (d,t') = splitOn2 ">" s
-            t      = init t'
-            list_t = "[" ++ t ++ "]"
-         in def { pclvTypename_   = list_t
-                , optionTypename_ = list_t
-                , setter_         = -- [q| setvals' d (parseAs t) |]
-                                    AppE (AppE (VarE 'setvals') (stringE d))
-                                         (AppE (VarE 'parseAs) (stringE t))
-                , parser_         = readParser list_t
-                , enactor_        = VarE 'return
-                , default_        = Just $ ConE '[]
-                , start_          = Just $ ConE '[]
-                }
-                       | otherwise = error $ "no such option type: '" ++ tt
-                                                                      ++ "'"
+--X oTypes_ ('[':',':t) | last t == ']' = oTypes_ ("[<,>" ++ t)
+--X oTypes_ tt@('[':'<':s) | '>' `elem` s && last s == ']' =
+--X         let (d,t') = splitOn2 ">" s
+--X             t      = init t'
+--X             list_t = "[" ++ t ++ "]"
+--X          in def { pclvTypename_   = list_t
+--X                 , optionTypename_ = list_t
+--X                 , setter_         = -- [q| setvals' d (parseAs t) |]
+--X                                     AppE (AppE (VarE 'setvals') (stringE d))
+--X                                          (AppE (VarE 'parseAs) (stringE t))
+--X                 , parser_         = readParser list_t
+--X                 , enactor_        = VarE 'return
+--X                 , default_        = Just $ ConE '[]
+--X                 , start_          = Just $ ConE '[]
+--X                 }
+--X                        | otherwise = error $ "no such option type: '" ++ tt
+--X                                                                       ++ "'"
 
 oTypes_ tt@('[':t)
-  | not (null t) && isUpper (head t) && last t == ']' =
+  | not (null t) && (isUpper (head t) || '[' == head t) && last t == ']' =
         def { pclvTypename_   = "Maybe " ++ tt
             , optionTypename_ = tt
-            , setter_         = -- [q| setvals_ (parseAs t) |]
-                                AppE (VarE 'setvals_) 
-                                     (AppE (VarE 'parseAs) (stringE t))
-            , parser_         = composeE (ConE 'Just) (readParser tt)
+            , setter_         = -- [q| (setvals_ []) (parseAs t) |]
+                                AppE (AppE (VarE 'setvals_)
+                                           (AppE (VarE 'parseAs) (stringE tt)))
+                                     (ListE [])
+
+            , setter_st_      = -- [q| (setvals_ []) (parseAs t) |]
+                                Just $ AppE (VarE 'setvals_)
+                                            (AppE (VarE 'parseAs) (stringE tt))
+--             , parser_         = composeE (ConE 'Just) (readParser tt)
+            , parser_         = readParser tt
             , enactor_        = VarE 'return
-            , default_        = Just $ ListE [LitE (RationalL (11%10)) ] -- ConE 'Nothing -- (AppE (ConE 'Just) (ConE '[]))
-            , start_          = Just $ ConE 'Nothing -- Just $ (AppE (ConE 'Just) (ConE '[])) -- ConE '[]
+            , default_        = Just (ConE 'Nothing) -- Just $ (AppE (ConE 'Just) (ConE '[]))
+            , start_          = Just (ConE '[]) -- Just (ConE 'Nothing) -- Just $ (AppE (ConE 'Just) (ConE '[]))
             }
 
 --X oTypes_ tt@('[':t)
@@ -329,6 +343,9 @@ oTypes_ t@(h:_) | isUpper h =
                            "String" -> Just . LitE $ StringL ""
                            "Int"    -> Just . LitE $ IntegerL 0
                            _        -> Nothing
+                     -- since values are set rather than updated, it makes
+                     -- no sense to have a start /= default
+                     , startIsDefault_ = True
                      }
 
                 | otherwise = error $ "no such option type: '" ++ t ++ "'"
@@ -383,6 +400,16 @@ optionType = ConT . mkName . optionTypename
 
 setter :: String -> Exp
 setter = setter_ . oTypes
+
+-- setter ----------------------------------------------------------------------
+
+{- | how to take a value that has been parsed by parser_, and store it into the
+     PCLV record. Thus, no IO.  This one will need setval or similar to set the
+     value in the record.  It expects a start value as its first argument.
+ -}
+
+setter_st :: String -> Maybe Exp
+setter_st = setter_st_ . oTypes
 
 -- parser ----------------------------------------------------------------------
 

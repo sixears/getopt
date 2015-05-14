@@ -10,7 +10,11 @@
 
 -- base --------------------------------
 
-import Control.Exception    ( SomeException, evaluate, try )
+import Control.Exception  ( SomeException, evaluate, try )
+import Data.Char          ( isAlpha )
+import Data.List          ( intercalate )
+import System.IO.Unsafe   ( unsafePerformIO )
+import Text.Printf        ( printf )
 
 -- lens --------------------------------
 
@@ -18,7 +22,11 @@ import Control.Lens  ( (^.) )
 
 -- template-haskell --------------------
 
-import Language.Haskell.TH  ( Exp, ExpQ, runQ )
+import Language.Haskell.TH ( Exp( AppE, InfixE, LitE, SigE, VarE )
+                           , Lit( RationalL, StringL )
+                           , Type( AppT, ArrowT, ConT )
+                           , ExpQ, runQ )
+import Language.Haskell.TH.Syntax  ( nameBase )
 
 -- test-tap ----------------------------
 
@@ -31,8 +39,8 @@ import Fluffy.Text.PCRE         ( substg )
 
 -- this package --------------------------------------------
 
-import Console.Getopt.OptDesc       ( descn, lensname, names, summary
-                                           , pprintQ, typename )
+import Console.Getopt.OptDesc       ( descn, dfGetter, lensname, names, summary
+                                    , pprintQ, typename )
 import Console.Getopt.OptDescParse  ( _check )
 import Console.Getopt.OptDescT      ( OptDesc(..) )
 import Console.Getopt.OTypes        ( typeDefault )
@@ -40,6 +48,45 @@ import Console.Getopt.OTypes        ( typeDefault )
 import OptDescHelp
 
 --------------------------------------------------------------------------------
+
+render :: ExpQ -> String
+render = render_ . unsafePerformIO . runQ
+
+render_ :: Exp -> String
+-- render_ e = error ("don't know how to render: " ++ show e)
+render_ (InfixE (Just l) i (Just r)) =
+  let inf  = render_ i
+      infi = if isAlpha (head inf) then "`" ++ inf ++ "`" else inf
+   in intercalate " " [ render_ l, infi, render_ r ]
+render_ (VarE nm) = nameBase nm
+render_ (AppE f a) = render_s f ++ " " ++ render_s a
+render_ (SigE e t) = render_ e ++ " :: " ++ render_t t
+render_ (LitE (StringL s)) = "\"" ++ s ++ "\""
+render_ (LitE (RationalL r)) = show (fromRational r :: Double)
+
+render_ e = error ("don't know how to render: " ++ show e)
+
+render_s :: Exp -> String
+render_s e = let r = render_ e
+              in if ' ' `elem` r
+                 then "(" ++ r ++ ")"
+                 else r
+
+render_t :: Type -> String
+render_t (ConT t) = nameBase t
+render_t (AppT ArrowT t) = render_t t ++ " ->"
+render_t (AppT t0 t1) = render_t t0  ++ " " ++ render_t t1
+render_t t = error ("don't know how to render type: " ++ show t)
+
+--
+
+-- what should a dfGetter look like, when parsing a pre-canned value
+typed_dfGetter :: String -> String -> String -> String
+typed_dfGetter typ val lens =
+  printf "fromMaybe ((readType \"%s\" :: String -> %s) \"%s\") . view %s"
+         typ typ val lens
+
+
 
 fromLeft :: Either a b -> a
 fromLeft (Left a) = a
@@ -86,8 +133,15 @@ main = do
 
   -- p0 --------------------------------
 
-  let p0 = read "z|y|xx>www::Double<1.1>" :: OptDesc -- no summary
+  let -- p0 = read "z|y|xx>www::Double<1.1>" :: OptDesc -- no summary
       show_p0 = is (show p0) "z|y|xx>www::Double<1.1>"                 "show p0"
+      dfg_p0  = is (render $ dfGetter p0)
+                   (typed_dfGetter "Double" "1.1" "www___")
+--                   (intercalate " " [ "fromMaybe ((readType \"Double\""
+--                                    , "::",  "String -> Double) \"1.1\")"
+--                                    , ".",  "view www___"
+--                                    ])
+                                                                   "dfGetter p0"
 
   -- p1 --------------------------------
 
@@ -141,6 +195,8 @@ main = do
       show_p1_3 = is (show p1_3)
                      "ghi|f::Float<7 / 1><11 / 2>#summ\nfoo\nbar"    "show p1_3"
 
+      dfg_p1  = is (render $ dfGetter p1) "fromMaybe 7.0 . view ghi___"
+                                                                   "dfGetter p1"
   -- p2 --------------------------------
 
   -- double with default, using a qualified (full) name
@@ -152,7 +208,9 @@ main = do
   let show_p2 =
         is (show p2) "z|y|xx>www::Double<1.1>#summary?\nbaz\nquux"     "show p2"
       dflt_p2 = is (showQ d2) (showQ d2_exp)                           "dflt p2"
-      dscn_p2 = is (p2 ^. descn) "baz\nquux"                           "descn p2"
+      dscn_p2 = is (p2 ^. descn) "baz\nquux"                          "descn p2"
+      dfg_p2  = is (render $ dfGetter p2)
+                   (typed_dfGetter "Double" "1.1" "www___")        "dfGetter p2"
 
   -- p3 --------------------------------
 
@@ -166,6 +224,7 @@ main = do
   d3 <- runQ $ _dflt p3
   d3_exp <- runQ [| Nothing |]
   let dflt_p3 = is d3 d3_exp                                           "dflt p3"
+      dfg_p3  = is (render $ dfGetter p3) ("view www___")          "dfGetter p3"
 
   -- p4 --------------------------------
 
@@ -173,6 +232,8 @@ main = do
       names_p4     = is (p4 ^. names) [ "s", "string" ]               "names p4"
       lensname_p4  = is (p4 ^. lensname) "s"                       "lensname p4"
       type_p4      = is (p4 ^. typename) "String"                  "typename p4"
+      dfg_p4  = is (render $ dfGetter p4)
+                   (typed_dfGetter "String" "bob" "s___")          "dfGetter p4"
 
   d4_exp <- runQ [| (readType "String" :: String -> String) "bob" |]
   s4_exp <- runQ [| Nothing |]
@@ -203,12 +264,14 @@ main = do
   -- template-haskell-2.9.0.0; we should really handle this in showQ, (by
   -- changing ListE [LitE (CharL 'I'),...] to LitE (String L "I...")
   -- s5_exp <- runQ [| readType ['I','n','t'] ['1','3'] :: Int |]
-  s5_exp <- runQ [| readType "Int" "13" :: Int |]
+  s5_exp <- runQ [| (readType "Int" :: String -> Int) "13" |]
 
   let strt_p5     = is (showQ s5) (showQ s5_exp)                       "strt p5"
 
   let summ_p5     = is (p5 ^. summary) "myint"                         "summ p5"
   let dscn_p5     = is (p5 ^. descn) "longdesc"                        "dscn p5"
+  let dfg_p5      = is (render $ dfGetter p5) 
+                       (typed_dfGetter "Int" "0" "int___")         "dfGetter p5"
 
   -- p7 --------------------------------
 
@@ -252,6 +315,9 @@ main = do
       names_p12    = is (p12 ^. names) [ "int-opt", "i" ]            "names p12"
       lensname_p12 = is (p12 ^. lensname) "int_opt"               "lensname p12"
       type_p12     = is (p12 ^. typename) "Int"                   "typename p12"
+      dfg_p12      = is (render $ dfGetter p12) 
+                        (typed_dfGetter "Int" "0" "int_opt___")   "dfGetter p12"
+
 
   -- p13 -------------------------------
 
@@ -270,24 +336,28 @@ main = do
       type_p9     = is (p9 ^. typename) "incr"                     "typename p9"
 
   d9 <- runQ $ _dflt p9
-  d9_exp <- runQ [| (readType "Int" :: String -> Int) "6" |]
+  d9_exp <- runQ [| (Just . (readType "Int" :: String -> Int)) "6" |]
 
   explain "p9" p9
   let dflt_p9     = is (showQ d9) (showQ d9_exp)                       "dflt p9"
 
   s9 <- runQ $ _strt p9
-  s9_exp <- runQ [| (readType "Int" :: String -> Int) "6" |]
+  s9_exp <- runQ [| (Just . (readType "Int" :: String -> Int)) "6" |]
 
   let strt_p9     = is (showQ s9) (showQ s9_exp)                       "strt p9"
 
   let summ_p9     = is (p9 ^. summary) "increment"                     "summ p9"
   let dscn_p9     = is (p9 ^. descn) ""                                "dscn p9"
+  let dfg_p9      = is (render $ dfGetter p9) 
+                       "fromJust . view incr___"                   "dfGetter p9"
 
   -- test ----------------------------------------------------------------------
 
   let typeD = maybe "-NONE-" showQ . typeDefault
 
-  test [ is (typeD "String") (pprintQ [| "" |])             "typeDefault String"
+  test [ is (render [| read "7" |]) "read \"7\""             "render read \"7\""
+
+       , is (typeD "String") (pprintQ [| "" |])             "typeDefault String"
        , is (typeD "Int") (pprintQ [| 0 |])                    "typeDefault Int"
        , is (typeD "Float") "-NONE-"                         "typeDefault Float"
        , is (typeD "?String") (pprintQ [| Nothing |])
@@ -296,12 +366,13 @@ main = do
                                                          "typeDefault Maybe Int"
        , is (typeD "?[[Int]]") (pprintQ [| Nothing |])
                                                           "typeDefault ?[[Int]]"
-       , is (typeD "[Int]") (pprintQ [| [] |])               "typeDefault [Int]"
-       , is (typeD "[[Int]]") (pprintQ [| [] |])           "typeDefault [[Int]]"
+       , is (typeD "[Int]") (pprintQ [| Just [] |])          "typeDefault [Int]"
+       , is (typeD "[[Int]]") (pprintQ [| Just [] |])      "typeDefault [[Int]]"
 
        , show_p0
-       , show_p1
+       , dfg_p0
 
+       , show_p1
        , names_p1
        , lensname_p1
        , type_p1
@@ -309,6 +380,7 @@ main = do
        , strt_p1
        , summ_p1
        , dscn_p1
+       , dfg_p1
 
        , show_p1_0
        , show_p1_1
@@ -317,6 +389,7 @@ main = do
 
        , show_p2
        , dflt_p2
+       , dfg_p2
 
        -- , diag $ show p7 -- get a meaningful parse error
        , err_p7
@@ -341,6 +414,7 @@ main = do
        , dflt_p3
        , dscn_p2
        -- , explain "p3" p3
+       , dfg_p3
 
        , names_p4
        , lensname_p4
@@ -349,6 +423,7 @@ main = do
        , strt_p4
        , summ_p4
        , dscn_p4
+       , dfg_p4
 
        , names_p5
        , lensname_p5
@@ -357,6 +432,7 @@ main = do
        , strt_p5
        , summ_p5
        , dscn_p5
+       , dfg_p5
 
        , names_p9
        , lensname_p9
@@ -365,10 +441,12 @@ main = do
        , strt_p9
        , summ_p9
        , dscn_p9
+       , dfg_p9
 
        , names_p12
        , lensname_p12
        , type_p12
+       , dfg_p12
 
        -------------------------------------------------------------------------
 

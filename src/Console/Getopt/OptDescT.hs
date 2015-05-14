@@ -42,19 +42,18 @@ import Text.Regex.Applicative  ( RE
 -- template-haskell --------------------
 
 import Language.Haskell.TH         ( ExpQ )
-import Language.Haskell.TH.Syntax  ( Exp( AppE, LitE ), Lit( StringL ) )
+import Language.Haskell.TH.Syntax  ( Exp( AppE, ConE, LitE ), Lit( StringL ) )
 
 -- fluffy --------------------------------------------------
 
 import Fluffy.Data.List         ( tr1 )
 import Fluffy.Language.TH       ( pprintQ )
-import Fluffy.Language.TH.Type  ( readTS )
 import Fluffy.Text.Regex        ( reFold )
 
 -- this package --------------------------------------------
 
 import Console.Getopt.OTypes    ( parser, startIsDefault, typeDefault
-                                , typeStart, optionTypename )
+                                , typeStart )
 
 
 --------------------------------------------------------------------------------
@@ -198,7 +197,6 @@ startVal :: Maybe String -- ^ start value, passed in by user between <>
          -> String       -- ^ full user option type text
          -> ExpQ
 startVal s t str = maybe (typeStartE t str) 
---                         (readTS (optionTypename t)) s
                          (return . AppE (parser t) .LitE . StringL) s
 
 -- typeDefaultE -----------------------
@@ -239,11 +237,15 @@ setTypeDfStMg str (type_str, mb_default_str, mb_start_str, mb_munge_str) =
         (if startIsDefault type_str
          then -- start == default, so it's an error for start to be independently
               -- defined by he user
-              maybe (set strt df_val)
+              maybe (set strt (return $ ConE 'Nothing)) -- (set strt df_val)
                     (error $ printf "may not set start val with type %s (%s)"
                                     type_str str)
                    mb_start_str
-         else set strt (startVal mb_start_str type_str str)
+         else let -- start string if specified, else default string if specified
+                  mb_strt_dflt_str = maybe mb_default_str Just mb_start_str
+                  -- value to set OptDesc strt to
+                  strt_val         = startVal mb_default_str type_str str
+               in set strt strt_val
         )
       . set dflt df_val
       . maybe id setmunge mb_munge_str

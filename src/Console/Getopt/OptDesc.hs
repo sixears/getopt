@@ -26,9 +26,9 @@ where
 
 -- base --------------------------------
 
-import Data.Char      ( isUpper )
-import Data.List      ( isPrefixOf )
-import Data.Maybe     ( fromJust, fromMaybe )
+import Data.List   ( isPrefixOf )
+import Data.Maybe  ( fromJust, fromMaybe )
+import Debug.Trace ( trace )
 
 -- lenses ------------------------------
 
@@ -69,6 +69,11 @@ optionTypename = OTypes.optionTypename . view typename
 setter :: OptDesc -> Exp
 setter = OTypes.setter . view typename
 
+-- setter_st ---------------------------
+
+setter_st :: OptDesc -> Maybe Exp
+setter_st = OTypes.setter_st . view typename
+
 -- enactor -----------------------------
 
 -- | find the enactor for this option
@@ -106,7 +111,16 @@ pclvField = (++ "___") . view lensname
 -- | the setval to use when setting this option in the PCLV record
 
 optSetVal :: OptDesc -> ExpQ
-optSetVal o = return $ AppE (setter o) (nameE $ pclvField o)
+optSetVal o =
+  case setter_st o of
+    -- new style, pass the start value
+    Just s_st ->  trace ("dflt: " ++ pprintQ (o ^. dflt)) $ 
+                  trace ("strt: " ++ pprintQ (o ^. strt)) $ 
+                  (o ^. dflt) >>= \d -> return $ AppE (AppE s_st d)
+                                                     (nameE $ pclvField o)
+    -- old style, no start value
+    Nothing   -> return $ AppE (setter o) (nameE $ pclvField o)
+
 
 -- viewE -------------------------------
 
@@ -115,7 +129,7 @@ optSetVal o = return $ AppE (setter o) (nameE $ pclvField o)
 viewE :: String -> Exp
 viewE  l = AppE (VarE 'view) (nameE l)
 
--- dfGetter ----------------------------
+-- dfGetter
 
 -- | a lambda that returns the user value, or default if such has been
 --   defined and no user value was supplied
@@ -137,29 +151,22 @@ dfGetter o =
                                 (AppE (VarE 'fromJust) d))
                           (viewE iF)
 
-      -- same, but for lists; if list is null, then substitute the default
-      getter_ls d = composeE (AppE (VarE 'list_df) d) (viewE iF)
-
    in if "Maybe " `isPrefixOf` (pclvTypename o) && head (optionTypename o) /= '?'
                                                 && (o ^. lensname) /= "decr"
                                                 && (o ^. lensname) /= "incr"
                                                 && head (optionTypename o) /= '['
       then (o ^. dflt) >>= return . getter_mb
       else if "incr" == o ^. lensname || "decr" == o ^. lensname
-           then return $ composeE (VarE 'fromJust) (viewE iF)
-           else if "floats2" == o ^. lensname
-                then (o ^. dflt) >>= return . getter_mb'
+--           then return $ composeE (VarE 'fromJust) (viewE iF)
+           then (if "xincr" == o ^. lensname then (return $ composeE (VarE 'fromJust) (viewE iF)) else (o ^. dflt) >>= return . getter_mb)
+           else if "floats2" == o ^. lensname || "ints2" == o ^. lensname
+                -- then (o ^. dflt) >>= return . getter_mb'
+                then (o ^. dflt) >>= return . getter_mb
                 else if "decr" == o ^. lensname || "incr" == o ^. lensname
                      then return (AppE (VarE 'fromJust) (viewE iF))
                      else if "ints2" == o ^. lensname
                           then return (composeE (VarE 'fromJust) (viewE iF))
                           else return (viewE iF)
---      else if '[' == head (pclvTypename o)
---           then (o ^. dflt) >>= return . getter_ls
---           else return (viewE iF)
-
-list_df :: [a] -> [a] -> [a]
-list_df df l = if null l then df else l
 
 -- recordFields ----------------------------------------------------------------
 
@@ -178,10 +185,8 @@ recordFields o = ('_' : o ^. lensname, optionTypename o)
    they are later lensed.
  -}
 precordDefFields :: OptDesc -> (String, String, ExpQ)
-precordDefFields o = let ot = optionTypename o
-                      in ('_' : o ^. lensname ++ "___",
-                          pclvTypename o,
---                          if head ot == '[' && isUpper (head (tail ot))
---                          then (fmap $ composeE (ConE 'Just)) (o ^. strt)
---                          else
-                                  o ^. strt)
+precordDefFields o = ('_' : o ^. lensname ++ "___", pclvTypename o, 
+                      case setter_st o of
+                        Just _  -> return $ ConE 'Nothing
+                        Nothing -> return $ ConE 'Nothing -- o ^. strt
+                     )
