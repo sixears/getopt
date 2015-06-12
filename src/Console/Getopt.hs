@@ -164,13 +164,10 @@ module Console.Getopt
   )
 where
 
--- make tests work
--- add dfGetter tests to t/OptDesc.hs
--- complete all listed tests for t/OptDesc.hs
--- add start, default tests for ints2
 -- make TH/OTypes always use Maybes for simplicity
 -- get rid of evil nested if in OptDesc::dfGetter
 -- re-apply missing fields to getopt-th.hs
+-- make tests work
 -- upgrade to 7.10
 -- create TH Render : takes a (Q) Exp, produces a string that is the deparsed
 --   code (hopefully)

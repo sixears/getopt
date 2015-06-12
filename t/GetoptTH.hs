@@ -169,6 +169,10 @@ main = do
             0 [ 2, 3 ] (Just opt { _s = "bob", _i = 8 })
             (Map.fromList [ ("i", "8"), ("s", "\"bob\"") ] `Map.union` items) []
 
+    , check "ints2" [ "3", "--ints2", "8", "--ints2", "7", "--ints2", "6" ]
+            0 [ 3 ] (Just opt { _ints2 = [5,8,8,7,6] })
+            (Map.fromList [ ("ints2", "[5,8,8,7,6]") ] `Map.union` items) []
+
     , check "incr" [ "2", "3", "--incr" ]
             0 [ 2, 3 ] (Just opt { _incr = 1 })
             (Map.fromList [ ("incr", "1") ] `Map.union` items) []

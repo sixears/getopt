@@ -72,9 +72,9 @@ import Console.Getopt.ParseOpt          ( parseAs )
 -- OV record.
 
 data OptTypes = OptTypes { {- | the type used for the PCLV container field.
-                                Note that this will likely be a Maybe (or list)
-                                type even for non-maybe option types, since we
-                                need to handle option defaults
+                                Note that this will be prefixed with "Maybe" by
+                                the `pclvTypename` fn, since we need to handle
+                                option defaults
                             -}
                            pclvTypename_    :: String -- e.g., "Maybe FilePath"
                            -- | the type used for the OV container field
@@ -172,7 +172,7 @@ oTypes s = let o = oTypes_ s in o -- traceShow o o
 
 oTypes_ :: String -> OptTypes
 
-oTypes_ "incr" = def { pclvTypename_   = "Maybe Int"
+oTypes_ "incr" = def { pclvTypename_   = "Int"
                      , optionTypename_ = "Int"
                       -- we need a parser to parse a potential default value
                      , setter_st_      = Just $ VarE 'setvalcM
@@ -184,7 +184,7 @@ oTypes_ "incr" = def { pclvTypename_   = "Maybe Int"
                      , startIsDefault_ = True
                      }
 
-oTypes_ "decr" = def { pclvTypename_   = "Maybe Int"
+oTypes_ "decr" = def { pclvTypename_   = "Int"
                      , optionTypename_ = "Int"
                      , setter_st_      = Just $ VarE 'setvalc'M
                       -- we need a parser to parse a potential default value
@@ -196,7 +196,7 @@ oTypes_ "decr" = def { pclvTypename_   = "Maybe Int"
                      , startIsDefault_ = True
                      }
 
-oTypes_ "filero" = def { pclvTypename_   = "Maybe FilePath"
+oTypes_ "filero" = def { pclvTypename_   = "FilePath"
                        , optionTypename_ = "FileRO"
                        , setter_         = AppE (VarE 'setval) (VarE 'return)
                        , parser_         = VarE 'id
@@ -205,7 +205,7 @@ oTypes_ "filero" = def { pclvTypename_   = "Maybe FilePath"
 
 oTypes_ ('?' : '*' : t@(h :_))
                 | isUpper h =
-                  def { pclvTypename_   = "Maybe String"
+                  def { pclvTypename_   = "String"
                       , optionTypename_ = '?' : t
                       , setter_         = setval_as t
                       , parser_         = VarE 'id
@@ -220,7 +220,7 @@ oTypes_ ('?' : '*' : t@(h :_))
 
                 | otherwise = error $ "no such option type: '?*" ++ t ++ "'"
 
-oTypes_ ('?':t) = def { pclvTypename_   = "Maybe " ++ t
+oTypes_ ('?':t) = def { pclvTypename_   = t
                       , optionTypename_ = '?' : t
                       , setter_         = setval_as t
                       , parser_         = readParser t
@@ -260,7 +260,7 @@ oTypes_ ('?':t) = def { pclvTypename_   = "Maybe " ++ t
 
 oTypes_ tt@('[':t)
   | not (null t) && (isUpper (head t) || '[' == head t) && last t == ']' =
-        def { pclvTypename_   = "Maybe " ++ tt
+        def { pclvTypename_   = tt
             , optionTypename_ = tt
             , setter_st_      = -- [q| setvalsM (parseAs t) |]
                                 Just $ AppE (VarE 'setvalsM)
@@ -286,7 +286,7 @@ oTypes_ tt@('[':t)
 
 -- IO types (simple,  value as String)
 oTypes_ ('*' : t@(h : _))
-  | isUpper h = def { pclvTypename_   = "Maybe String"
+  | isUpper h = def { pclvTypename_   = "String"
                     , optionTypename_ = t
                     , setter_         = setval_as t
                     , parser_         = VarE 'id
@@ -299,7 +299,7 @@ oTypes_ ('*' : t@(h : _))
 oTypes_ [] = error "empty typestring"
 
 oTypes_ t@(h:_) | isUpper h =
-                 def { pclvTypename_   = "Maybe " ++ t
+                 def { pclvTypename_   = t
                      , optionTypename_ = t
                      , setter_         = setval_as t
                      , parser_         = readParser t
@@ -334,7 +334,7 @@ typeStart = fmap return . start_ . oTypes
 -- | type to use within the PCLV record for a requested option type
 --   (so Int becomes Maybe Int (to allow for default != start) for example)
 pclvTypename :: String -> String
-pclvTypename = pclvTypename_ . oTypes
+pclvTypename = ("Maybe " ++) . pclvTypename_ . oTypes
 
 -- pclvType --------------------------------------------------------------------
 
