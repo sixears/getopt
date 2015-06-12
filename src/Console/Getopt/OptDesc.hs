@@ -28,7 +28,6 @@ where
 
 import Data.List   ( isPrefixOf )
 import Data.Maybe  ( fromJust, fromMaybe )
-import Debug.Trace ( trace )
 
 -- lenses ------------------------------
 
@@ -114,11 +113,7 @@ optSetVal :: OptDesc -> ExpQ
 optSetVal o =
   case setter_st o of
     -- new style, pass the start value
-    Just s_st ->  trace ("lensname: " ++ o ^. lensname ) $
-                  trace ("dflt: " ++ pprintQ (o ^. dflt)) $ 
-                  trace ("strt: " ++ pprintQ (o ^. strt)) $ 
-                  (o ^. strt) >>= \d -> return $ AppE (AppE s_st d)
---                  (o ^. dflt) >>= \d -> return $ AppE (AppE s_st d)
+    Just s_st ->  (o ^. strt) >>= \d -> return $ AppE (AppE s_st d)
                                                      (nameE $ pclvField o)
     -- old style, no start value
     Nothing   -> return $ AppE (setter o) (nameE $ pclvField o)
@@ -149,9 +144,6 @@ dfGetter o =
       --              Nothing -> d
       --              Just x  -> x
       getter_mb  d = composeE (AppE (VarE 'fromMaybe) d) (viewE iF)
-      getter_mb' d = composeE (AppE (VarE 'fromMaybe)
-                                (AppE (VarE 'fromJust) d))
-                          (viewE iF)
 
    in if "Maybe " `isPrefixOf` (pclvTypename o) && head (optionTypename o) /= '?'
                                                 && (o ^. lensname) /= "decr"

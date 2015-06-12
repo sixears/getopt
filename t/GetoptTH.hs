@@ -139,7 +139,7 @@ main = do
                        , _filero  = FRO "/etc/group"
                        , _mfilero = Nothing
 --                       , _floats1 = []
-                       , _floats2 = [1.1,2.3]
+                       , _floats2 = [9.8,7.6]
 --                       , _ints1 = [2,3,5,7,11,13]
                        , _ints2 = [1,1,2,3]
                        }
@@ -151,7 +151,7 @@ main = do
                            , ("filero", "{handle: /etc/group}")
                            , ("mfilero","Nothing")
 --                           , ("floats1", "[]")
-                           , ("floats2", "[1.1,2.3]")
+                           , ("floats2", "[9.8,7.6]")
 --                           , ("ints1", "[2,3,5,7,11,13]")
                            , ("ints2", "[1,1,2,3]")
                            ]

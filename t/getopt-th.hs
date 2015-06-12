@@ -135,6 +135,6 @@ main = do
   putStrLn $ "mfilero: "  ++ show (fmap getHandle (opts ^. mfilero))
 --  putStrLn $ "floats1: "  ++ show (opts ^. floats1)
   putStrLn $ "floats2: "  ++ show (opts ^. floats2)
---  putStrLn $ "ints1:   "  ++ show (opts ^. ints1)
-  putStrLn $ "ints2:   "  ++ show (opts ^. ints2)
-  getopts getoptsx_ (ArgSome 1 3) "filename" return >>= print
+--  putStrLn $ "ints1  : "  ++ show (opts ^. ints1)
+  putStrLn $ "ints2  : "  ++ show (opts ^. ints2)
+--  getopts getoptsx_ (ArgSome 1 3) "filename" return >>= print

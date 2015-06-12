@@ -154,9 +154,9 @@ module Console.Getopt
 
   -- * setval* Variants
   , setvalOW, setval
-  , setvalc, setvalc'
+  , setvalc, setvalc', setvalcM, setvalc'M
   , setvalm, setvalm', setvalm_, setvalm__
-  , setvals, setvals'
+  , setvals, setvals', setvalsM, setvals'M
   , setvalt, setvalf, setval', setvalAList, setvalAList'
 
   -- * useful extras
@@ -164,12 +164,13 @@ module Console.Getopt
   )
 where
 
-
+-- make tests work
 -- add dfGetter tests to t/OptDesc.hs
 -- complete all listed tests for t/OptDesc.hs
 -- add start, default tests for ints2
 -- make TH/OTypes always use Maybes for simplicity
--- get rid of evil nested if in OptDesc::dfFetter
+-- get rid of evil nested if in OptDesc::dfGetter
+-- re-apply missing fields to getopt-th.hs
 -- upgrade to 7.10
 -- create TH Render : takes a (Q) Exp, produces a string that is the deparsed
 --   code (hopefully)
@@ -267,7 +268,7 @@ import Data.Char          ( isAlphaNum )
 import Data.Either        ( partitionEithers )
 import Data.Functor       ( (<$>) )
 import Data.List          ( intercalate, partition )
-import Data.Maybe         ( catMaybes, fromJust )
+import Data.Maybe         ( catMaybes, fromJust, fromMaybe )
 import System.Environment ( getArgs, getProgName )
 import System.IO          ( Handle )
 import System.IO.Unsafe   ( unsafeDupablePerformIO )
@@ -734,6 +735,13 @@ getopts optCfg arity argtype parser =
 getopts' :: Default o => [Option o] -> IO ([String], o)
 getopts' optCfg = getopts optCfg ArgAny "String" (return . id)
 
+-- mblens ----------------------------------------------------------------------
+
+-- | convert a lens to a @(Maybe b)@ to a lens to a @b@ by providing a defaulted
+--   value lest the lens target is Nothing
+
+mblens :: b -> Lens' a (Maybe b) -> Lens' a b
+mblens b = lensLens (fromMaybe b) Just
 
 --------------------------------------------------------------------------------
 -- setval*
@@ -775,23 +783,22 @@ lensLens aToB bToA l functor p =
 setvalc :: Lens' o Int -> OptParse o
 setvalc = setValue ValNone (\ _ _ c -> return $ c + 1)
 
-mi :: Lens' a (Maybe b) -> Lens' a b
-mi = lensLens fromJust Just
-
-setvalc_ :: Lens' o (Maybe Int) -> OptParse o
--- setvalc_ = setValue ValNone (\ _ _ c -> return $ maybe (Just 1) (Just . (+1)) c)
--- setvalc_ = setValue ValNone (\ _ _ c -> return . Just . (+1) $ fromMaybe 0 c)
--- setvalc . mi no workee.  See GHC notes on impredicative types and ($)
-setvalc_ l = setvalc $ mi l
--- setvalc_ = fmap (fromMaybe 0) setvalc
-
 -- | setval for counter values; decrements on each call
 
 setvalc' :: Lens' o Int -> OptParse o
 setvalc' = setValue ValNone (\ _ _ c -> return $ c - 1)
 
-setvalc'_ :: Lens' o (Maybe Int) -> OptParse o
-setvalc'_ = setValue ValNone (\ _ _ c -> return $ maybe (Just (-1)) (Just . (\x -> x - 1)) c)
+-- | like setvalc, but targets a Maybe Int lens; the first arg is used to set
+--   the inner Int (prior to incrementing) on the first call
+
+setvalcM :: Int -> Lens' o (Maybe Int) -> OptParse o
+setvalcM b l = setvalc $ mblens b l
+
+-- | like setvalc', but targets a Maybe Int lens; the first arg is used to set
+--   the inner Int (prior to decrementing) on the first call
+
+setvalc'M :: Int -> Lens' o (Maybe Int) -> OptParse o
+setvalc'M b l = setvalc' $ mblens b l
 
 -- setvals ---------------------------------------------------------------------
 
@@ -811,6 +818,24 @@ setvals' :: (NFData b)
          -> Lens' o [b] -> OptParse o
 setvals' s f =
   setval' (\ i is -> mapM f (splitOnL s i) >>= return . (is ++))
+
+-- | like setvals, but writes to a Maybe List; if Maybe is Nothing, then a start
+--   value of the lens will be implied (being the first arg); the given value
+--   then be appended to the underlying list as for setvals.
+
+-- note that things like @ setvalc . mblens @ won't work.  This is due to issues
+-- with Impredicative Types; see GHC notes on this and ($), which is handled 
+-- specially (hence @ \x -> setvalc $ mblens x @ would work where 
+-- @ setvalc . mblens @ does not)
+
+setvalsM :: (NFData b)
+         => (String -> IO b) -> [b] -> Lens' o (Maybe [b]) -> OptParse o
+setvalsM f b l = setvals f $ mblens b l
+
+setvals'M :: (NFData b)
+          => String -> (String -> IO b) -> [b] -> Lens' o (Maybe [b]) 
+          -> OptParse o
+setvals'M s f b l = setvals' s f $ mblens b l
 
 -- setval' ---------------------------------------------------------------------
 

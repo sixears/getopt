@@ -27,7 +27,7 @@ import Console.Getopt    ( ArgArity( ArgSome ), HelpOpts(..)
                          , getopts, helpme, mkOpt, mkOptsB
                          , setvalOW, setval, setvalc, setvalc'
                          , setvalm, setvalm_, setvalm'
-                         , setvals, setvals', setvals_, setvals'_
+                         , setvals, setvals', setvalsM, setvals'M
                          , setvalt, setvalAList'
                          )
 --------------------------------------------------------------------------------
@@ -93,18 +93,20 @@ optCfg = [ mkOpt "s"  [ "string"  ] (setval return string) "string" "String"
                  "int list"  "[Int]" "[Int]" "[]"
          , mkOpt "c" [] (setvals' "," (return . readType "Int") list)
                  "comma-ilist" "a comma-separated list of integers" "[Int]" "[]"
-         , mkOpt "M" [] (setvals_ (return . readType "Int") mb_list)
+         , mkOpt "M" [] (setvalsM (return . readType "Int") [2,3] mb_list)
                  "maybe int list" "?[Int]" "?[Int]" "Nothing"
-         , mkOpt "" ["mil"] (setvals'_ "," (return . readType "Int") mb_list)
+         , mkOpt "" ["mil"] (setvals'M "," (return . readType "Int") [5,6] 
+                                       mb_list)
                  "maybe int list, with commas" "?[Int]" "?[Int]" "Nothing"
          , mkOpt "n" [] (setval (return . readType "Int") mebbei) 
                   "maybe int" "maybe int'" "?Maybe" ""
          , mkOpt "a" [ "alist" ] (setvalAList' "=>"
-                                              (const . return . readType "Int")
-                                              (\ x _ _ -> 
-                                                fmap NFHandle $ 
-                                                  openFile x ReadMode)
-                                              alist )
+                                               (const . return . readType "Int")
+                                               (\ x _ _ -> 
+                                                 fmap NFHandle $ 
+                                                   openFile x ReadMode)
+                                               alist 
+                                 )
                  "alist int=>fn" "an alist of int to handle" 
                  "[(Int, Handle)]" "[]"
          , mkOpt "m" [ "optval" ] (setvalm_ obool)

@@ -149,7 +149,7 @@ main = do
                    , _lensname = "ghi"
                    , _typename = "Float"
                    , _dflt     = [| 7.0 |]
-                   , _strt     = [| 5.5 |]
+                   , _strt     = [| 7.0 |]
                    , _summary  = "summ"
                    , _descn    = ""
 -- pre-munge (String -> X)?  post-munge (X -> X)?  Not worry for now?
@@ -162,7 +162,7 @@ main = do
       type_p1      = is (p1 ^. typename) "Float"                   "typename p1"
 
   d1_exp <- runQ [| 7.0 |]
-  s1_exp <- runQ [| 5.5 |]
+  s1_exp <- runQ [| 7.0 |]
 
   d1 <- runQ $ _dflt p1
   s1 <- runQ $ _strt p1
@@ -175,25 +175,25 @@ main = do
 
       -- show of an OptDesc
   let show_p1   = is (show p1)
-                      "a|b|cd|ef>ghi::Float<7 / 1><11 / 2>#summ"       "show p1"
+                      "a|b|cd|ef>ghi::Float<7 / 1>#summ"       "show p1"
       -- single long name
       p1_0      = p1 { _names = [ "ef" ] }
       show_p1_0 = is (show p1_0)
-                     "ef>ghi::Float<7 / 1><11 / 2>#summ"             "show p1_0"
+                     "ef>ghi::Float<7 / 1>#summ"             "show p1_0"
       -- single short name
       p1_1      = p1 { _names = [ "f" ] }
       show_p1_1 = is (show p1_1)
-                     "f>ghi::Float<7 / 1><11 / 2>#summ"              "show p1_1"
+                     "f>ghi::Float<7 / 1>#summ"              "show p1_1"
 
       -- first name matches lensname
       p1_2      = p1 { _names = [ "ghi", "f" ] }
       show_p1_2 = is (show p1_2)
-                     "ghi|f::Float<7 / 1><11 / 2>#summ"              "show p1_2"
+                     "ghi|f::Float<7 / 1>#summ"              "show p1_2"
 
       -- first name matches lensname
       p1_3      = p1 { _names = [ "ghi", "f" ], _descn = "foo\nbar" }
       show_p1_3 = is (show p1_3)
-                     "ghi|f::Float<7 / 1><11 / 2>#summ\nfoo\nbar"    "show p1_3"
+                     "ghi|f::Float<7 / 1>#summ\nfoo\nbar"    "show p1_3"
 
       dfg_p1  = is (render $ dfGetter p1) "fromMaybe 7.0 . view ghi___"
                                                                    "dfGetter p1"
@@ -236,7 +236,8 @@ main = do
                    (typed_dfGetter "String" "bob" "s___")          "dfGetter p4"
 
   d4_exp <- runQ [| (readType "String" :: String -> String) "bob" |]
-  s4_exp <- runQ [| Nothing |]
+--  s4_exp <- runQ [| Nothing |]
+  let s4_exp = d4_exp
 
   d4 <- runQ $ _dflt p4
   s4 <- runQ $ _strt p4
@@ -249,7 +250,7 @@ main = do
 
   -- p5 --------------------------------
 
-  let p5 = read "int|i|int-opt::Int<0><13>#myint\nlongdesc" :: OptDesc
+  let p5 = read "int|i|int-opt::Int<0>#myint\nlongdesc" :: OptDesc
       names_p5    = is (p5 ^. names) [ "int", "i", "int-opt" ]        "names p5"
       lensname_p5 = is (p5 ^. lensname) "int"                      "lensname p5"
       type_p5     = is (p5 ^. typename) "Int"                      "typename p5"
@@ -264,7 +265,7 @@ main = do
   -- template-haskell-2.9.0.0; we should really handle this in showQ, (by
   -- changing ListE [LitE (CharL 'I'),...] to LitE (String L "I...")
   -- s5_exp <- runQ [| readType ['I','n','t'] ['1','3'] :: Int |]
-  s5_exp <- runQ [| (readType "Int" :: String -> Int) "13" |]
+  s5_exp <- runQ [| (readType "Int" :: String -> Int) "0" |]
 
   let strt_p5     = is (showQ s5) (showQ s5_exp)                       "strt p5"
 
@@ -311,7 +312,7 @@ main = do
 
   -- p12 -------------------------------
 
-  let p12 = read "int-opt|i::Int<0><13>#myint\nlongdesc" :: OptDesc
+  let p12 = read "int-opt|i::Int<0>#myint\nlongdesc" :: OptDesc
       names_p12    = is (p12 ^. names) [ "int-opt", "i" ]            "names p12"
       lensname_p12 = is (p12 ^. lensname) "int_opt"               "lensname p12"
       type_p12     = is (p12 ^. typename) "Int"                   "typename p12"
@@ -336,20 +337,21 @@ main = do
       type_p9     = is (p9 ^. typename) "incr"                     "typename p9"
 
   d9 <- runQ $ _dflt p9
-  d9_exp <- runQ [| (Just . (readType "Int" :: String -> Int)) "6" |]
+  d9_exp <- runQ [| (readType "Int" :: String -> Int) "6" |]
 
   explain "p9" p9
   let dflt_p9     = is (showQ d9) (showQ d9_exp)                       "dflt p9"
 
   s9 <- runQ $ _strt p9
-  s9_exp <- runQ [| (Just . (readType "Int" :: String -> Int)) "6" |]
+  s9_exp <- runQ [| (readType "Int" :: String -> Int) "6" |]
 
   let strt_p9     = is (showQ s9) (showQ s9_exp)                       "strt p9"
 
   let summ_p9     = is (p9 ^. summary) "increment"                     "summ p9"
   let dscn_p9     = is (p9 ^. descn) ""                                "dscn p9"
   let dfg_p9      = is (render $ dfGetter p9) 
-                       "fromJust . view incr___"                   "dfGetter p9"
+                       (   "fromMaybe ((readType \"Int\" :: String -> Int)"
+                        ++ " \"6\") . view incr___")               "dfGetter p9"
 
   -- test ----------------------------------------------------------------------
 

@@ -43,7 +43,7 @@ import Text.Regex.Applicative  ( RE
 -- template-haskell --------------------
 
 import Language.Haskell.TH         ( ExpQ )
-import Language.Haskell.TH.Syntax  ( Exp( AppE, ConE, LitE ), Lit( StringL ) )
+import Language.Haskell.TH.Syntax  ( Exp( AppE, LitE ), Lit( StringL ) )
 
 -- fluffy --------------------------------------------------
 
@@ -130,7 +130,11 @@ instance Show OptDesc where
                              -- prints
                              Just u  -> pprintQ expq == pprintQ u
             -- printed default & start value
-            stStr = if st == "Data.Maybe.Nothing" then "" else "<" ++ st ++ ">"
+            stStr = if startIsDefault (o ^. typename)
+                    then ""
+                    else if st == "Data.Maybe.Nothing" 
+                         then "" 
+                         else "<" ++ st ++ ">"
             dfst = if isTypeD (o ^. dflt)
                    then if "" == stStr then "" else "<>" ++ stStr
                    else "<" ++ df ++ ">" ++ stStr
@@ -238,7 +242,7 @@ setTypeDfStMg str (type_str, mb_default_str, mb_start_str, mb_munge_str) =
         (if startIsDefault type_str
          then -- start == default, so it's an error for start to be independently
               -- defined by he user
-              maybe (set strt df_val) -- (set strt (return $ ConE 'Nothing)) -- (set strt df_val)
+              maybe (set strt df_val)
                     (error $ printf "may not set start val with type %s (%s)"
                                     type_str str)
                    mb_start_str

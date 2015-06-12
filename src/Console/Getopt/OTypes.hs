@@ -32,23 +32,14 @@ where
 -- base --------------------------------
 
 import Data.Char   ( isUpper )
-import Data.Maybe  ( fromMaybe )
 
 -- data-default ------------------------
 
 import Data.Default  ( Default( def ) )
 
--- deepseq -----------------------------
-
-import Control.DeepSeq  ( NFData )
-
--- lens --------------------------------
-
-import Control.Lens  ( Lens' )
-
 -- template-haskell --------------------
 
-import Language.Haskell.TH  ( Exp ( AppE, ConE, LitE, ListE, SigE, VarE        )
+import Language.Haskell.TH  ( Exp ( AppE, ConE, LitE, SigE, VarE               )
                             , Lit ( IntegerL, StringL                          )
                             , Type( AppT, ArrowT, ConT                         )
                             , ExpQ
@@ -57,16 +48,14 @@ import Language.Haskell.TH  ( Exp ( AppE, ConE, LitE, ListE, SigE, VarE        )
 
 -- fluffy ------------------------------
 
-import Fluffy.Data.List         ( splitOn2 )
 import Fluffy.Language.TH       ( composeE, mAppE, stringE )
 import Fluffy.Language.TH.Type  ( readType, strToT )
 
 -- this package --------------------------------------------
 
-import Console.Getopt                   ( setval, setvalc
-                                        , setvalc', setvals, setvals'
-
-                                        , lensLens, OptParse
+import Console.Getopt                   ( setval
+                                        , setvalcM, setvalc'M
+                                        , setvalsM
                                         )
 import Console.Getopt.CmdlineParseable  ( FileRO, enactOpt )
 import Console.Getopt.ParseOpt          ( parseAs )
@@ -176,37 +165,6 @@ setval_as :: String -> Exp
 setval_as t = -- [q| setval (parseAs t) |]
               AppE (VarE 'setval) (AppE (VarE 'parseAs) (stringE t))
 
--- setvals_ --------------------------------------------------------------------
-
--- | like setvals, but writes to a Maybe List; if Maybe is Nothing, then a start
---   value of the lens will be implied (being the first arg); the given value
---   then be appended to the underlying list as for setvals.
-
--- note that things like @ setvalc . mblens @ won't work.  This is due to issues
--- with Impredicative Types; see GHC notes on this and ($), which is handled 
--- specially (hence @ \x -> setvalc $ mblens x @ would work where 
--- @ setvalc . mblens @ does not)
-
-setvals_ :: (NFData b)
-         => (String -> IO b) -> [b] -> Lens' o (Maybe [b]) -> OptParse o
-setvals_ f b l = setvals f $ mblens b l
-
--- | convert a lens to a @(Maybe b)@ to a lens to a @b@ by providing a defaulted
---   value lest the lens target is Nothing
-
-mblens :: b -> Lens' a (Maybe b) -> Lens' a b
-mblens b = lensLens (fromMaybe b) Just
-
-setvalc_ :: Int -> Lens' o (Maybe Int) -> OptParse o
-setvalc_ b l = setvalc $ mblens b l
-setvalc'_ :: Int -> Lens' o (Maybe Int) -> OptParse o
-setvalc'_ b l = setvalc' $ mblens b l
-
--- setvalc_ = fmap (fromMaybe 0) setvalc
-
--- setvalc'_ :: Lens' o (Maybe Int) -> OptParse o
--- setvalc'_ = setValue ValNone (\ _ _ c -> return $ maybe (Just (-1)) (Just . (\x -> x - 1)) c)
-
 ------------------------------------------------------------
 
 oTypes :: String -> OptTypes
@@ -216,9 +174,8 @@ oTypes_ :: String -> OptTypes
 
 oTypes_ "incr" = def { pclvTypename_   = "Maybe Int"
                      , optionTypename_ = "Int"
---                     , setter_         = VarE 'setvalc_
                       -- we need a parser to parse a potential default value
-                     , setter_st_      = Just $ VarE 'setvalc_
+                     , setter_st_      = Just $ VarE 'setvalcM
                      , parser_         = readInt
                      , enactor_        = VarE 'return
                      , default_        = Just (LitE (IntegerL 0))
@@ -229,10 +186,8 @@ oTypes_ "incr" = def { pclvTypename_   = "Maybe Int"
 
 oTypes_ "decr" = def { pclvTypename_   = "Maybe Int"
                      , optionTypename_ = "Int"
---                     , setter_         = VarE 'setvalc'_
-                     , setter_st_      = Just $ VarE 'setvalc'_
+                     , setter_st_      = Just $ VarE 'setvalc'M
                       -- we need a parser to parse a potential default value
---                     , parser_         = composeE (ConE 'Just) readInt
                      , parser_         = readInt
                      , enactor_        = VarE 'return
                      , default_        = Just (AppE (ConE 'Just)
@@ -307,17 +262,12 @@ oTypes_ tt@('[':t)
   | not (null t) && (isUpper (head t) || '[' == head t) && last t == ']' =
         def { pclvTypename_   = "Maybe " ++ tt
             , optionTypename_ = tt
---            , setter_         = -- [q| (setvals_ []) (parseAs t) |]
---                                AppE (AppE (VarE 'setvals_)
---                                           (AppE (VarE 'parseAs) (stringE tt)))
---                                     (ListE [])
-
-            , setter_st_      = -- [q| setvals_ (parseAs t) |]
-                                Just $ AppE (VarE 'setvals_)
+            , setter_st_      = -- [q| setvalsM (parseAs t) |]
+                                Just $ AppE (VarE 'setvalsM)
                                             (AppE (VarE 'parseAs) (stringE tt))
             , parser_         = readParser tt
             , enactor_        = VarE 'return
-            , default_        = Just (ConE 'Nothing) -- Just $ (AppE (ConE 'Just) (ConE '[]))
+            , default_        = Just $ (AppE (ConE 'Just) (ConE '[])) -- Just (ConE 'Nothing)
             , start_          = Just (ConE '[]) -- Just (ConE 'Nothing) -- Just $ (AppE (ConE 'Just) (ConE '[]))
             }
 
