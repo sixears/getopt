@@ -26,8 +26,7 @@ where
 
 -- base --------------------------------
 
-import Data.List   ( isPrefixOf )
-import Data.Maybe  ( fromJust, fromMaybe )
+import Data.Maybe  ( fromMaybe )
 
 -- lenses ------------------------------
 
@@ -132,35 +131,14 @@ viewE  l = AppE (VarE 'view) (nameE l)
 --   defined and no user value was supplied
 dfGetter :: OptDesc -> ExpQ
 dfGetter o =
-  let -- implementation field of the option
-      iF = pclvField o
-      -- given a default value (df), return a fn that
+  let -- given a default value (df), return a fn that
       -- (1) takes on Opt (o)
       -- (2) reads a maybe value from the implementation field of the option
       -- (3) if it's a Just it unwraps it, else it returns the given default
 
-      -- TH version of \d -> (maybe d id) . (view iF),
-      -- thus \o -> case (view iF o) of
-      --              Nothing -> d
-      --              Just x  -> x
-      getter_mb  d = composeE (AppE (VarE 'fromMaybe) d) (viewE iF)
-
-   in if "Maybe " `isPrefixOf` (pclvTypename o) && head (optionTypename o) /= '?'
-                                                && (o ^. lensname) /= "decr"
-                                                && (o ^. lensname) /= "incr"
-                                                && head (optionTypename o) /= '['
-      then (o ^. dflt) >>= return . getter_mb
-      else if "incr" == o ^. lensname || "decr" == o ^. lensname
---           then return $ composeE (VarE 'fromJust) (viewE iF)
-           then (if "xincr" == o ^. lensname then (return $ composeE (VarE 'fromJust) (viewE iF)) else (o ^. dflt) >>= return . getter_mb)
-           else if "floats2" == o ^. lensname || "ints2" == o ^. lensname
-                -- then (o ^. dflt) >>= return . getter_mb'
-                then (o ^. dflt) >>= return . getter_mb
-                else if "decr" == o ^. lensname || "incr" == o ^. lensname
-                     then return (AppE (VarE 'fromJust) (viewE iF))
-                     else if "ints2" == o ^. lensname
-                          then return (composeE (VarE 'fromJust) (viewE iF))
-                          else return (viewE iF)
+      -- TH version of fromMaybe <default> . view <pclvField o>
+      getter_mb  d = composeE (AppE (VarE 'fromMaybe) d) (viewE $ pclvField o)
+   in (o ^. dflt) >>= return . getter_mb
 
 -- recordFields ----------------------------------------------------------------
 
@@ -174,12 +152,12 @@ recordFields o = ('_' : o ^. lensname, optionTypename o)
 -- precordDefFields ------------------------------------------------------------
 
 {- | the fields passed to mkLensedRecordDef for the parsed record for this
-   option; that is, the field name, field type and starting value for the
-   parsed implementation of the option record.  Fields are prefixed with '_' as
-   they are later lensed.
+     option; that is, the field name, field type and starting value for the
+     parsed implementation of the option record.  Fields are prefixed with '_'
+     as they are later lensed.
  -}
 precordDefFields :: OptDesc -> (String, String, ExpQ)
-precordDefFields o = ('_' : o ^. lensname ++ "___", pclvTypename o, 
+precordDefFields o = ('_' : o ^. lensname ++ "___", pclvTypename o,
                       case setter_st o of
                         Just _  -> return $ ConE 'Nothing
                         Nothing -> return $ ConE 'Nothing -- o ^. strt

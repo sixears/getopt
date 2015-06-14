@@ -22,7 +22,7 @@ import Control.Lens  ( (^.) )
 
 -- template-haskell --------------------
 
-import Language.Haskell.TH ( Exp( AppE, InfixE, LitE, SigE, VarE )
+import Language.Haskell.TH ( Exp( AppE, ConE, InfixE, LitE, SigE, VarE )
                            , Lit( RationalL, StringL )
                            , Type( AppT, ArrowT, ConT )
                            , ExpQ, runQ )
@@ -59,6 +59,7 @@ render_ (InfixE (Just l) i (Just r)) =
       infi = if isAlpha (head inf) then "`" ++ inf ++ "`" else inf
    in intercalate " " [ render_ l, infi, render_ r ]
 render_ (VarE nm) = nameBase nm
+render_ (ConE nm) = nameBase nm
 render_ (AppE f a) = render_s f ++ " " ++ render_s a
 render_ (SigE e t) = render_ e ++ " :: " ++ render_t t
 render_ (LitE (StringL s)) = "\"" ++ s ++ "\""
@@ -217,14 +218,13 @@ main = do
   -- default to Nothing
   -- defined in OptDescHelp
 
-  -- p3 = read "z|y|xx>www::Data.Maybe.Maybe Double#summary?" :: OptDesc
-
   let show_p3 =
         is (show p3) "z|y|xx>www::?Double#summary?"                    "show p3"
   d3 <- runQ $ _dflt p3
   d3_exp <- runQ [| Nothing |]
   let dflt_p3 = is d3 d3_exp                                           "dflt p3"
-      dfg_p3  = is (render $ dfGetter p3) ("view www___")          "dfGetter p3"
+      dfg_p3  = is (render $ dfGetter p3) 
+                   ("fromMaybe Nothing . view www___")             "dfGetter p3"
 
   -- p4 --------------------------------
 
@@ -350,8 +350,8 @@ main = do
   let summ_p9     = is (p9 ^. summary) "increment"                     "summ p9"
   let dscn_p9     = is (p9 ^. descn) ""                                "dscn p9"
   let dfg_p9      = is (render $ dfGetter p9) 
-                       (   "fromMaybe ((readType \"Int\" :: String -> Int)"
-                        ++ " \"6\") . view incr___")               "dfGetter p9"
+                       (typed_dfGetter "Int" "6" "incr___")
+                                                                   "dfGetter p9"
 
   -- test ----------------------------------------------------------------------
 

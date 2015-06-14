@@ -164,10 +164,12 @@ module Console.Getopt
   )
 where
 
--- make TH/OTypes always use Maybes for simplicity
--- get rid of evil nested if in OptDesc::dfGetter
+-- get rid of setter_; make setter_st_ be setter_; update OptDesc:optSetVal +
+--   OptDesc.precordDefFields
+-- fix --help text wrt Maybe everywhere (check long & short)
 -- re-apply missing fields to getopt-th.hs
 -- make tests work
+-- add types, default values to long help
 -- upgrade to 7.10
 -- create TH Render : takes a (Q) Exp, produces a string that is the deparsed
 --   code (hopefully)

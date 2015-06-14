@@ -223,6 +223,7 @@ oTypes_ ('?' : '*' : t@(h :_))
 oTypes_ ('?':t) = def { pclvTypename_   = t
                       , optionTypename_ = '?' : t
                       , setter_         = setval_as t
+                      , setter_st_      = Just $ setval_as t
                       , parser_         = readParser t
                       , enactor_        = VarE 'return
                       }
