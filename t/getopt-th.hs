@@ -23,7 +23,7 @@ import Fluffy.Language.TH.Type  ( readType )
 
 -- this package --------------------------------------------
 
-import Console.Getopt    ( ArgArity( ArgSome ), getopts )
+import Console.Getopt    ( ArgArity( ArgSome ) )
 import Console.GetoptTH  ( CmdlineParseable(..), FileRO, mkopts )
 
 --------------------------------------------------------------------------------

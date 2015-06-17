@@ -48,7 +48,7 @@ import Language.Haskell.TH  ( Exp ( AppE, ConE, LitE, SigE, VarE               )
 
 -- fluffy ------------------------------
 
-import Fluffy.Language.TH       ( composeE, mAppE, stringE )
+import Fluffy.Language.TH       ( composeApE, composeE, mAppE, stringE )
 import Fluffy.Language.TH.Type  ( readType, strToT )
 
 -- this package --------------------------------------------
@@ -165,6 +165,14 @@ setval_as :: String -> Exp
 setval_as t = -- [q| setval (parseAs t) |]
               AppE (VarE 'setval) (AppE (VarE 'parseAs) (stringE t))
 
+setval_asM :: String -> Exp
+setval_asM t = -- [q| const $ setval (parseAs t) |]
+               composeApE (VarE 'const)
+                          (AppE (VarE 'setval) 
+                                (AppE (VarE 'parseAs) (stringE t)))
+
+
+
 ------------------------------------------------------------
 
 oTypes :: String -> OptTypes
@@ -198,16 +206,20 @@ oTypes_ "decr" = def { pclvTypename_   = "Int"
 
 oTypes_ "filero" = def { pclvTypename_   = "FilePath"
                        , optionTypename_ = "FileRO"
+--                       , setter_st_      = Just $ AppE (VarE 'setval)
+--                                                       (VarE 'return)
                        , setter_         = AppE (VarE 'setval) (VarE 'return)
                        , parser_         = VarE 'id
                        , enactor_        = VarE 'openFileRO
+                       , startIsDefault_ = True
                        }
 
 oTypes_ ('?' : '*' : t@(h :_))
                 | isUpper h =
                   def { pclvTypename_   = "String"
                       , optionTypename_ = '?' : t
-                      , setter_         = setval_as t
+--                       , setter_         = setval_as t
+                      , setter_st_      = Just $ setval_asM t
                       , parser_         = VarE 'id
                         -- [q| maybe (return Nothing) ((fmap Just) . enactOpt) |]
                       , enactor_        =
@@ -223,7 +235,7 @@ oTypes_ ('?' : '*' : t@(h :_))
 oTypes_ ('?':t) = def { pclvTypename_   = t
                       , optionTypename_ = '?' : t
                       , setter_         = setval_as t
-                      , setter_st_      = Just $ setval_as t
+                      , setter_st_      = Just $ setval_asM t
                       , parser_         = readParser t
                       , enactor_        = VarE 'return
                       }
@@ -289,7 +301,8 @@ oTypes_ tt@('[':t)
 oTypes_ ('*' : t@(h : _))
   | isUpper h = def { pclvTypename_   = "String"
                     , optionTypename_ = t
-                    , setter_         = setval_as t
+--                     , setter_         = setval_as t
+                    , setter_st_      = Just $ setval_asM t
                     , parser_         = VarE 'id
                     , enactor_        = VarE 'enactOpt
                     , default_        = Nothing
@@ -302,7 +315,7 @@ oTypes_ [] = error "empty typestring"
 oTypes_ t@(h:_) | isUpper h =
                  def { pclvTypename_   = t
                      , optionTypename_ = t
-                     , setter_         = setval_as t
+                     , setter_st_      = Just $ setval_asM t
                      , parser_         = readParser t
                      , enactor_        = VarE 'return
                      , default_        =

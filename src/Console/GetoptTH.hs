@@ -83,8 +83,8 @@ import Control.Monad.Trans.Writer.Strict  ( WriterT, runWriterT, tell )
 import Fluffy.Data.String              ( ucfirst )
 import Fluffy.Language.TH              ( appTIO, assignN, composeApE, composeE
                                        , infix2E , listOfN, mAppE, mAppEQ
-                                       , mkSimpleTypedFun, nameEQ, stringEQ
-                                       , tsArrows, tupleL, pprintQ
+                                       , mkSimpleTypedFun, stringEQ
+                                       , tsArrows, tupleL
                                        )
 import Fluffy.Language.TH.Record       ( mkLensedRecord, mkLensedRecordDef )
 import Fluffy.Sys.Exit                 ( exitUsage )

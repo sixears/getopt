@@ -223,8 +223,9 @@ main = do
   d3 <- runQ $ _dflt p3
   d3_exp <- runQ [| Nothing |]
   let dflt_p3 = is d3 d3_exp                                           "dflt p3"
-      dfg_p3  = is (render $ dfGetter p3) 
-                   ("fromMaybe Nothing . view www___")             "dfGetter p3"
+      dfg_p3  = is (render $ dfGetter p3)
+--                   ("fromMaybe Nothing . view www___")             "dfGetter p3"
+                   ("view www___")                                 "dfGetter p3"
 
   -- p4 --------------------------------
 
@@ -271,7 +272,7 @@ main = do
 
   let summ_p5     = is (p5 ^. summary) "myint"                         "summ p5"
   let dscn_p5     = is (p5 ^. descn) "longdesc"                        "dscn p5"
-  let dfg_p5      = is (render $ dfGetter p5) 
+  let dfg_p5      = is (render $ dfGetter p5)
                        (typed_dfGetter "Int" "0" "int___")         "dfGetter p5"
 
   -- p7 --------------------------------
@@ -316,7 +317,7 @@ main = do
       names_p12    = is (p12 ^. names) [ "int-opt", "i" ]            "names p12"
       lensname_p12 = is (p12 ^. lensname) "int_opt"               "lensname p12"
       type_p12     = is (p12 ^. typename) "Int"                   "typename p12"
-      dfg_p12      = is (render $ dfGetter p12) 
+      dfg_p12      = is (render $ dfGetter p12)
                         (typed_dfGetter "Int" "0" "int_opt___")   "dfGetter p12"
 
 
@@ -349,9 +350,24 @@ main = do
 
   let summ_p9     = is (p9 ^. summary) "increment"                     "summ p9"
   let dscn_p9     = is (p9 ^. descn) ""                                "dscn p9"
-  let dfg_p9      = is (render $ dfGetter p9) 
+  let dfg_p9      = is (render $ dfGetter p9)
                        (typed_dfGetter "Int" "6" "incr___")
                                                                    "dfGetter p9"
+
+  -- p14 -------------------------------
+
+  -- tests for filero
+
+  let p14 = read "filero::filero</etc/passwd>#filero" :: OptDesc
+
+  let show_p14 =
+        is (show p14) "filero::filero</etc/passwd>#filero"            "show p14"
+  d14 <- runQ $ _dflt p14
+  d14_exp <- runQ [| id "/etc/passwd" |]
+  let dflt_p14 = is d14 d14_exp                                       "dflt p14"
+      dfg_p14  = is (render $ dfGetter p14)
+                    ("fromMaybe (id \"/etc/passwd\") . view filero___")
+                                                                  "dfGetter p14"
 
   -- test ----------------------------------------------------------------------
 
@@ -391,6 +407,7 @@ main = do
 
        , show_p2
        , dflt_p2
+       , dscn_p2
        , dfg_p2
 
        -- , diag $ show p7 -- get a meaningful parse error
@@ -414,7 +431,6 @@ main = do
 
        , show_p3
        , dflt_p3
-       , dscn_p2
        -- , explain "p3" p3
        , dfg_p3
 
@@ -449,6 +465,10 @@ main = do
        , lensname_p12
        , type_p12
        , dfg_p12
+
+       , show_p14
+       , dflt_p14
+       , dfg_p14
 
        -------------------------------------------------------------------------
 

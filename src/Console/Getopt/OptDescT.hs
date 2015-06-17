@@ -24,7 +24,6 @@ import Data.Char            ( isAlphaNum, isDigit, isUpper )
 import Data.Functor         ( (<$>) )
 import Data.List            ( intercalate )
 import Data.Maybe           ( fromMaybe )
-import Debug.Trace          ( trace )
 import Text.Printf          ( printf )
 
 -- data-default ------------------------
@@ -49,6 +48,7 @@ import Language.Haskell.TH.Syntax  ( Exp( AppE, LitE ), Lit( StringL ) )
 
 import Fluffy.Data.List         ( tr1 )
 import Fluffy.Language.TH       ( pprintQ )
+import Fluffy.Text.PCRE         ( subst )
 import Fluffy.Text.Regex        ( reFold )
 
 -- this package --------------------------------------------
@@ -113,8 +113,10 @@ instance Show OptDesc where
         , if null (o ^. summary) then [""] else ["#", o ^. summary]
         , if null (o ^. descn) then [""] else ["\n", o ^. descn]
         ]
-      where df = pprintQ (o ^. dflt)
-            st = pprintQ (o ^. strt)
+      where renderTH th = let r = pprintQ th
+                           in ("^id \\\"([^\"]+)\\\"$" `subst` "$1") r
+            df = renderTH (o ^. dflt)
+            st = renderTH (o ^. strt)
             -- +-------------+----------+------------+
             -- | dflt | strt | uber-df  |    else    |
             -- +-------------+----------+------------+
@@ -250,8 +252,7 @@ setTypeDfStMg str (type_str, mb_default_str, mb_start_str, mb_munge_str) =
                   mb_strt_dflt_str = maybe mb_default_str Just mb_start_str
                   -- value to set OptDesc strt to
                   strt_val         = startVal mb_strt_dflt_str type_str str
-               in trace ("strt_val: " ++ pprintQ strt_val ++ "\tmb_strt_dflt_str: '" ++ show mb_strt_dflt_str ++ "'") $
-                  set strt strt_val
+               in set strt strt_val
         )
       . set dflt df_val
       . maybe id setmunge mb_munge_str
