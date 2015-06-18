@@ -137,11 +137,8 @@ dfGetter o =
       -- (3) if it's a Just it unwraps it, else it returns the given default
 
       -- TH version of fromMaybe <default> . view <pclvField o>
-      iF = pclvField o
       getter_mb  d = composeE (AppE (VarE 'fromMaybe) d) (viewE $ pclvField o)
-   in if head (optionTypename o) == '?'
-      then return (viewE iF)
-      else (o ^. dflt) >>= return . getter_mb
+   in (o ^. dflt) >>= return . getter_mb
 
 -- recordFields ----------------------------------------------------------------
 

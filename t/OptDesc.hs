@@ -224,8 +224,7 @@ main = do
   d3_exp <- runQ [| Nothing |]
   let dflt_p3 = is d3 d3_exp                                           "dflt p3"
       dfg_p3  = is (render $ dfGetter p3)
---                   ("fromMaybe Nothing . view www___")             "dfGetter p3"
-                   ("view www___")                                 "dfGetter p3"
+                   ("fromMaybe Nothing . view www___")             "dfGetter p3"
 
   -- p4 --------------------------------
 

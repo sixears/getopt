@@ -232,9 +232,8 @@ oTypes_ ('?' : '*' : t@(h :_))
 
                 | otherwise = error $ "no such option type: '?*" ++ t ++ "'"
 
-oTypes_ ('?':t) = def { pclvTypename_   = t
+oTypes_ ('?':t) = def { pclvTypename_   = "Maybe " ++ t
                       , optionTypename_ = '?' : t
-                      , setter_         = setval_as t
                       , setter_st_      = Just $ setval_asM t
                       , parser_         = readParser t
                       , enactor_        = VarE 'return
