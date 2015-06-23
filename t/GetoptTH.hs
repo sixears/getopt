@@ -21,15 +21,11 @@ import Control.Lens  ( over, _1 )
 
 import System.Process  ( readProcessWithExitCode )
 
--- unix --------------------------------
-
-import System.Posix.Directory  ( getWorkingDirectory )
-
 -- local packages ------------------------------------------
 
 -- test-tap ----------------------------
 
-import Test.TAP  ( Test, diag, explain, is, like, ok, test )
+import Test.TAP  ( Test, is, like, ok, test )
 
 -- Fluffy ------------------------------
 
@@ -108,11 +104,11 @@ check_invocation exec name iargs exp_exit exp_args exp_opt exp_items exp_err = d
       eexit e = ExitFailure e
 
   return [ is exit (eexit exp_exit)                               (nm "success")
-         , explain "args" args
+         -- , explain "args" args
          , if null args
            then ok (null exp_args)                           (nm "empty args")
            else like (read args) exp_args                          (nm "args")
-         , explain "opts" opts
+         -- , explain "opts" opts
          , maybe (ok (null opts)                               (nm "no opts"))
                  (\o -> is (read opts) o                          (nm "opts"))
                  exp_opt
@@ -125,7 +121,6 @@ check_invocation exec name iargs exp_exit exp_args exp_opt exp_items exp_err = d
 
 main :: IO ()
 main = do
-  getWorkingDirectory >>= diag . ("cwd: " ++)
   let getopt_th    = joinPath [ "dist", "build", "getopt-th-hs", "getopt-th-hs" ]
       check        = check_invocation getopt_th
 
@@ -185,14 +180,14 @@ main = do
              `Map.union` items)
             []
 
-    , check "mebbe" [ "2", "3", "--maybe-i", "14", "--mebbej", "Nothing" ]
+    , check "mebbe (1)" [ "2", "3", "--maybe-i", "14", "--mebbej", "Nothing" ]
             0 [ 2, 3 ]
             (Just opt { _maybe_i = Just 14, _mebbej = Nothing })
             (Map.fromList [ ("mebbei", "Just 14") , ("mebbej", "Nothing") ]
              `Map.union` items)
             []
 
-    , check "mebbe" [ "2", "3", "--mebbej", "Just 2" ]
+    , check "mebbe (2)" [ "2", "3", "--mebbej", "Just 2" ]
             0 [ 2, 3 ]
             (Just opt { _mebbej = Just 2 })
             (Map.fromList [ ("mebbej", "Just 2") ] `Map.union` items)

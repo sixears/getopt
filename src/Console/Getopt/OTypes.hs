@@ -88,16 +88,16 @@ data OptTypes = OptTypes { {- | the type used for the PCLV container field.
                            {- | how to take a value that has been parsed by
                                 parser_, and store it into the PCLV record.
                                 Thus, no IO.  This one will need setval or
-                                similar to set the value in the record.
+                                similar to set the value in the record.  But the
+                                _st_ is because we pass in a start value to
+                                initialize the lens when it is called (but not
+                                beforehand, so we may determine an uncalled opt)
                             -}
                          , setter_st_       :: Maybe Exp
                            {- | how to parse a String to generate a value; as an
                                 Exp (:: String -> optionType).  This also
                                 includes parsing a default value given in the
-                                string to mkopts.  But the _st_ is because we
-                                pass in a start value to initialize the lens
-                                when it is called (but not beforehand, so we
-                                may determine an uncalled opt)
+                                string to mkopts.
                             -}
                          , parser_          :: Exp -- e.g., readParser "<type>"
                            {- | how to take a value, perform IO on it to provide
@@ -162,16 +162,19 @@ openFileRO = enactOpt
 
 -- | call setval on a thing parsed to type t
 setval_as :: String -> Exp
-setval_as t = -- [q| setval (parseAs t) |]
-              AppE (VarE 'setval) (AppE (VarE 'parseAs) (stringE t))
-
-setval_asM :: String -> Exp
-setval_asM t = -- [q| const $ setval (parseAs t) |]
+setval_as t = -- [q| const $ setval (parseAs t) |]
                composeApE (VarE 'const)
-                          (AppE (VarE 'setval) 
+                          (AppE (VarE 'setval)
                                 (AppE (VarE 'parseAs) (stringE t)))
 
-
+-- | like setval_as, but prefixes the result with Just to use in a '?' type
+setval_as_maybe :: String -> Exp
+setval_as_maybe t = -- [q| const $ setval ((fmap Just) . (parseAs t)) |]
+                    composeApE (VarE 'const)
+                               (AppE (VarE 'setval)
+                                     (composeE (AppE (VarE 'fmap) (ConE 'Just))
+                                               (AppE (VarE 'parseAs) 
+                                                     (stringE t))))
 
 ------------------------------------------------------------
 
@@ -206,8 +209,9 @@ oTypes_ "decr" = def { pclvTypename_   = "Int"
 
 oTypes_ "filero" = def { pclvTypename_   = "FilePath"
                        , optionTypename_ = "FileRO"
---                       , setter_st_      = Just $ AppE (VarE 'setval)
---                                                       (VarE 'return)
+                       , setter_st_      =
+                           Just $ composeApE (VarE 'const) (AppE (VarE 'setval)
+                                                                 (VarE 'return))
                        , setter_         = AppE (VarE 'setval) (VarE 'return)
                        , parser_         = VarE 'id
                        , enactor_        = VarE 'openFileRO
@@ -216,10 +220,9 @@ oTypes_ "filero" = def { pclvTypename_   = "FilePath"
 
 oTypes_ ('?' : '*' : t@(h :_))
                 | isUpper h =
-                  def { pclvTypename_   = "String"
+                  def { pclvTypename_   = "Maybe String"
                       , optionTypename_ = '?' : t
---                       , setter_         = setval_as t
-                      , setter_st_      = Just $ setval_asM t
+                      , setter_st_      = Just $ setval_as_maybe t
                       , parser_         = VarE 'id
                         -- [q| maybe (return Nothing) ((fmap Just) . enactOpt) |]
                       , enactor_        =
@@ -234,7 +237,7 @@ oTypes_ ('?' : '*' : t@(h :_))
 
 oTypes_ ('?':t) = def { pclvTypename_   = "Maybe " ++ t
                       , optionTypename_ = '?' : t
-                      , setter_st_      = Just $ setval_asM t
+                      , setter_st_      = Just $ setval_as_maybe t
                       , parser_         = readParser t
                       , enactor_        = VarE 'return
                       }
@@ -300,8 +303,7 @@ oTypes_ tt@('[':t)
 oTypes_ ('*' : t@(h : _))
   | isUpper h = def { pclvTypename_   = "String"
                     , optionTypename_ = t
---                     , setter_         = setval_as t
-                    , setter_st_      = Just $ setval_asM t
+                    , setter_st_      = Just $ setval_as t
                     , parser_         = VarE 'id
                     , enactor_        = VarE 'enactOpt
                     , default_        = Nothing
@@ -314,7 +316,7 @@ oTypes_ [] = error "empty typestring"
 oTypes_ t@(h:_) | isUpper h =
                  def { pclvTypename_   = t
                      , optionTypename_ = t
-                     , setter_st_      = Just $ setval_asM t
+                     , setter_st_      = Just $ setval_as t
                      , parser_         = readParser t
                      , enactor_        = VarE 'return
                      , default_        =
