@@ -18,7 +18,7 @@ embedded 'option types' for use in OptDesc descriptor strings
 -}
 
 module Console.Getopt.OTypes
-  ( pclvType, pclvTypename, parser, setter, setter_st, enactor, startIsDefault
+  ( pclvType, pclvTypename, parser, setter, enactor, startIsDefault
   , typeDefault, typeStart, optionTypename, optionType )
 where
 
@@ -82,18 +82,12 @@ data OptTypes = OptTypes { {- | the type used for the PCLV container field.
                            {- | how to take a value that has been parsed by
                                 parser_, and store it into the PCLV record.
                                 Thus, no IO.  This one will need setval or
-                                similar to set the value in the record.
+                                similar to set the value in the record.  We pass
+                                in a start value to initialize the lens when it
+                                is called (but not beforehand, so we may
+                                determine an uncalled opt)
                             -}
                          , setter_          :: Exp -- e.g., [q| setval return |]
-                           {- | how to take a value that has been parsed by
-                                parser_, and store it into the PCLV record.
-                                Thus, no IO.  This one will need setval or
-                                similar to set the value in the record.  But the
-                                _st_ is because we pass in a start value to
-                                initialize the lens when it is called (but not
-                                beforehand, so we may determine an uncalled opt)
-                            -}
-                         , setter_st_       :: Maybe Exp
                            {- | how to parse a String to generate a value; as an
                                 Exp (:: String -> optionType).  This also
                                 includes parsing a default value given in the
@@ -136,7 +130,6 @@ instance Default OptTypes where
   def = OptTypes { pclvTypename_   = "-UNIMPLEMENTED IMPLEMENTATION TYPE-"
                  , optionTypename_ = "-UNIMPLEMENTED OPTION TYPE-"
                  , setter_         = stringE "-UNIMPLEMENTED SETTER-"
-                 , setter_st_      = Nothing
                  , parser_         = stringE "-UNIMPLEMENTED PARSER-"
                  , enactor_        = stringE "-UNIMPLEMENTED ENACTOR-"
                  , default_        = Just $ ConE 'Nothing
@@ -186,7 +179,7 @@ oTypes_ :: String -> OptTypes
 oTypes_ "incr" = def { pclvTypename_   = "Int"
                      , optionTypename_ = "Int"
                       -- we need a parser to parse a potential default value
-                     , setter_st_      = Just $ VarE 'setvalcM
+                     , setter_         = VarE 'setvalcM
                      , parser_         = readInt
                      , enactor_        = VarE 'return
                      , default_        = Just (LitE (IntegerL 0))
@@ -197,7 +190,7 @@ oTypes_ "incr" = def { pclvTypename_   = "Int"
 
 oTypes_ "decr" = def { pclvTypename_   = "Int"
                      , optionTypename_ = "Int"
-                     , setter_st_      = Just $ VarE 'setvalc'M
+                     , setter_         = VarE 'setvalc'M
                       -- we need a parser to parse a potential default value
                      , parser_         = readInt
                      , enactor_        = VarE 'return
@@ -209,10 +202,9 @@ oTypes_ "decr" = def { pclvTypename_   = "Int"
 
 oTypes_ "filero" = def { pclvTypename_   = "FilePath"
                        , optionTypename_ = "FileRO"
-                       , setter_st_      =
-                           Just $ composeApE (VarE 'const) (AppE (VarE 'setval)
-                                                                 (VarE 'return))
-                       , setter_         = AppE (VarE 'setval) (VarE 'return)
+                       , setter_         = composeApE (VarE 'const) 
+                                                      (AppE (VarE 'setval)
+                                                            (VarE 'return))
                        , parser_         = VarE 'id
                        , enactor_        = VarE 'openFileRO
                        , startIsDefault_ = True
@@ -222,7 +214,7 @@ oTypes_ ('?' : '*' : t@(h :_))
                 | isUpper h =
                   def { pclvTypename_   = "Maybe String"
                       , optionTypename_ = '?' : t
-                      , setter_st_      = Just $ setval_as_maybe t
+                      , setter_         = setval_as_maybe t
                       , parser_         = VarE 'id
                         -- [q| maybe (return Nothing) ((fmap Just) . enactOpt) |]
                       , enactor_        =
@@ -237,7 +229,7 @@ oTypes_ ('?' : '*' : t@(h :_))
 
 oTypes_ ('?':t) = def { pclvTypename_   = "Maybe " ++ t
                       , optionTypename_ = '?' : t
-                      , setter_st_      = Just $ setval_as_maybe t
+                      , setter_         = setval_as_maybe t
                       , parser_         = readParser t
                       , enactor_        = VarE 'return
                       }
@@ -277,9 +269,9 @@ oTypes_ tt@('[':t)
   | not (null t) && (isUpper (head t) || '[' == head t) && last t == ']' =
         def { pclvTypename_   = tt
             , optionTypename_ = tt
-            , setter_st_      = -- [q| setvalsM (parseAs t) |]
-                                Just $ AppE (VarE 'setvalsM)
-                                            (AppE (VarE 'parseAs) (stringE tt))
+            , setter_         = -- [q| setvalsM (parseAs t) |]
+                                AppE (VarE 'setvalsM) (AppE (VarE 'parseAs) 
+                                                            (stringE tt))
             , parser_         = readParser tt
             , enactor_        = VarE 'return
             , default_        = Just $ (AppE (ConE 'Just) (ConE '[])) -- Just (ConE 'Nothing)
@@ -303,7 +295,7 @@ oTypes_ tt@('[':t)
 oTypes_ ('*' : t@(h : _))
   | isUpper h = def { pclvTypename_   = "String"
                     , optionTypename_ = t
-                    , setter_st_      = Just $ setval_as t
+                    , setter_         = setval_as t
                     , parser_         = VarE 'id
                     , enactor_        = VarE 'enactOpt
                     , default_        = Nothing
@@ -316,7 +308,7 @@ oTypes_ [] = error "empty typestring"
 oTypes_ t@(h:_) | isUpper h =
                  def { pclvTypename_   = t
                      , optionTypename_ = t
-                     , setter_st_      = Just $ setval_as t
+                     , setter_         = setval_as t
                      , parser_         = readParser t
                      , enactor_        = VarE 'return
                      , default_        =
@@ -376,21 +368,11 @@ optionType = ConT . mkName . optionTypename
 
 {- | how to take a value that has been parsed by parser_, and store it into the
      PCLV record. Thus, no IO.  This one will need setval or similar to set the
-     value in the record.
+     value in the record.  It expects a start value as its first argument.
  -}
 
 setter :: String -> Exp
 setter = setter_ . oTypes
-
--- setter ----------------------------------------------------------------------
-
-{- | how to take a value that has been parsed by parser_, and store it into the
-     PCLV record. Thus, no IO.  This one will need setval or similar to set the
-     value in the record.  It expects a start value as its first argument.
- -}
-
-setter_st :: String -> Maybe Exp
-setter_st = setter_st_ . oTypes
 
 -- parser ----------------------------------------------------------------------
 

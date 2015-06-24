@@ -67,11 +67,6 @@ optionTypename = OTypes.optionTypename . view typename
 setter :: OptDesc -> Exp
 setter = OTypes.setter . view typename
 
--- setter_st ---------------------------
-
-setter_st :: OptDesc -> Maybe Exp
-setter_st = OTypes.setter_st . view typename
-
 -- enactor -----------------------------
 
 -- | find the enactor for this option
@@ -110,13 +105,7 @@ pclvField = (++ "___") . view lensname
 
 optSetVal :: OptDesc -> ExpQ
 optSetVal o =
-  case setter_st o of
-    -- new style, pass the start value
-    Just s_st ->  (o ^. strt) >>= \d -> return $ AppE (AppE s_st d)
-                                                     (nameE $ pclvField o)
-    -- old style, no start value
-    Nothing   -> return $ AppE (setter o) (nameE $ pclvField o)
-
+  (o ^. strt) >>= \d -> return $ AppE (AppE (setter o) d) (nameE $ pclvField o)
 
 -- viewE -------------------------------
 
@@ -157,8 +146,6 @@ recordFields o = ('_' : o ^. lensname, optionTypename o)
      as they are later lensed.
  -}
 precordDefFields :: OptDesc -> (String, String, ExpQ)
-precordDefFields o = ('_' : o ^. lensname ++ "___", pclvTypename o,
-                      case setter_st o of
-                        Just _  -> return $ ConE 'Nothing
-                        Nothing -> return $ ConE 'Nothing -- o ^. strt
-                     )
+precordDefFields o = ('_' : o ^. lensname ++ "___", 
+                      pclvTypename o,
+                      return $ ConE 'Nothing)

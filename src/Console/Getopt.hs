@@ -164,10 +164,9 @@ module Console.Getopt
   )
 where
 
--- collapse setval_asM and setval_as 
---   (having replaced all setval_as setters with setval_asM setter_st)
 -- get rid of setter_; make setter_st_ be setter_; update OptDesc:optSetVal +
 --   OptDesc.precordDefFields
+-- precordDefFields is returning a constant return $ ConE 'Nothing.  Dispense.
 -- fix --help text wrt Maybe everywhere (check long & short)
 -- write howtouse doc for GetoptTH.hs
 -- re-apply missing fields to getopt-th.hs
