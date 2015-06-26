@@ -2,7 +2,7 @@
 
 -- base --------------------------------
 
-import Data.List    ( isInfixOf, partition )
+import Data.List    ( intercalate, isInfixOf, partition )
 import System.Exit  ( ExitCode(..) )
 
 -- containers --------------------------
@@ -123,6 +123,7 @@ main :: IO ()
 main = do
   let getopt_th    = joinPath [ "dist", "build", "getopt-th-hs", "getopt-th-hs" ]
       check        = check_invocation getopt_th
+      pad n s      = s ++ replicate (n - length s) ' '
 
   let opt   = Getoptsx { _s = ""
                        , _i = 4
@@ -150,6 +151,8 @@ main = do
 --                           , ("ints1", "[2,3,5,7,11,13]")
                            , ("ints2", "[1,1,2,3]")
                            ]
+  
+  (exit, out, err) <- readProcessWithExitCode getopt_th ["--help"] ""
 
   (fmap concat . sequence)
     [ check "error invocation"  []    2 []  Nothing    Map.empty
@@ -215,5 +218,38 @@ main = do
             [    "! getopt-th-hs: /etc/nostname: openFile: does not exist " 
               ++ "(No such file or directory)" ]
 
+    , return [ is exit (ExitFailure 2) "--help exit is 2" 
+             , like (lines out) 
+               ([ "usage: getopt-th-hs <option>* <filename>{1,3}"
+                , "", "options:" ] ++ 
+               fmap (\ss -> "  " ++ intercalate "  " (zipWith pad [12,9,10,42] ss))
+                    [ [ "name"        , "type"  , "default", "summary"         ]
+                    , [ "-s|--string" , "String", "\"\""   , "string summary"  ]
+                    , [ "-i|--int"    , "Int"   , "4"      , "integer summary" ]
+                    , [ "-I|--maybe-i", "Int"   , ""       , 
+                                                       "maybe integer summary" ]
+                    , [ "-J|--mebbej" , "Maybe Int", 
+                                                  "Just 5" , 
+                                                       "maybe integer summary" ]
+                    , [ "-C|--incr"   , "incr"  , "0"      , 
+                                                           "increment summary" ]
+                    , [ "-D|--decr"   , "decr"  , "6"      , 
+                                                           "decrement summary" ]
+                    , [ "--handle"    , "filero", "/etc/motd","read-only file" ]
+                    , [ "--filero"    , "ROFile", "/etc/group", 
+                                              "IO handle (default /etc/group)" ]
+                    , [ "--mfilero"   , "ROFile", "", "IO handle (no default)" ]
+
+                    , ["--floats2"    , "[Float]","[9.8,7.6]","list of floats" ]
+                    , [ "--ints2"     , "[Int]",  "[1,1,2,3]", "list of ints"  ]
+                    , [ "--help"      , "", "", 
+                                  "this help; use --help=<opt> for detail (no" ]
+                    ]
+               ++ [    "                                         " 
+                    ++ "leading hyphens on <opt>                " ]
+               )
+               "--help stdout"
+             , like (lines err) []   "--help stderr"
+             ]
     ]
     >>= test

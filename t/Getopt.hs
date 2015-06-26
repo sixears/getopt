@@ -80,7 +80,7 @@ optCfg = [ mkOpt "fF" [ "foo", "fop", "fob"  ] (setval return foo)
          , mkOpt "s" [] (setvalt sett) "sett" "this is a setting option" "" ""
          ]
          ++ mkOptsB "t" ["tett"] tett
-                    "tett" "this is another setting option" "" "" ++
+                    "tett" "this is another setting option" "typ" "dflt" ++
          [ mkOpt "x" [] (setvalf uett)
                  "uett" "another setting option; def True" "" ""
          , mkOpt "c" [] (setvalOW return corn) "corn" "corn on the cob" "" ""
@@ -195,32 +195,37 @@ main = do
                  , "option 'foo' requires a value"
                  ]
 
-      help_exp  = [ ("-f|-F|--foo"  ,   "fooness")
-                  , ("  --fop|--fob",   ""       )
-                  , ("-b|--bob",        "bobness")
-                  , ("-a|--bar",        "barity")
-                  , ("-q|-Q|-u|--quux", "quuxoffalot")
-                  , ("-s"     ,         "sett")
-                  , ("-t|--tett",       "tett")
-                  , ("--no-tett",       "logical inversion of -t|--tett")
-                  , ("-x",              "uett")
-                  , ("-c",              "corn")
-                  , ("--help",          "helpsicle")
-                  , ("-l",              "list")
-                  , ("-C",              "clist")
-                  , ("-A|--alist",      "alist")
-                  , ("-m|--optval",     "optval")
-                  , ("-M|--optval2",    "optval")
-                  , ("-y"             , "valm0")
-                  , ("-Y"             , "valm1")
-                  , ("-o"             , "valm2")
-                  , ("-d"             , "decrement")
-                  , ("-D"             , "increment")
+      help_exp  = [ ["-f|-F|--foo"  ,   "", "", "fooness"     ]
+                  , ["  --fop|--fob",   "", "", ""            ]
+                  , ["-b|--bob",        "", "", "bobness"     ]
+                  , ["-a|--bar",        "", "", "barity"      ]
+                  , ["-q|-Q|-u|--quux", "", "", "quuxoffalot" ]
+                  , ["-s"     ,         "", "", "sett"        ]
+                  , ["-t|--tett",       "typ", "dflt", "tett" ]
+                  , ["--no-tett",       "typ", "dflt", 
+                             "logical inversion of -t|--tett" ]
+                  , ["-x",              "", "", "uett"        ]
+                  , ["-c",              "", "", "corn"        ]
+                  , ["--help",          "", "", "helpsicle"   ]
+                  , ["-l",              "", "", "list"        ]
+                  , ["-C",              "", "", "clist"       ]
+                  , ["-A|--alist",      "", "", "alist"       ]
+                  , ["-m|--optval",     "", "", "optval"      ]
+                  , ["-M|--optval2",    "", "", "optval"      ]
+                  , ["-y",              "", "", "valm0"       ]
+                  , ["-Y",              "", "", "valm1"       ]
+                  , ["-o",              "", "", "valm2"       ]
+                  , ["-d",              "", "", "decrement"   ]
+                  , ["-D",              "", "", "increment"   ]
                   ]
       pad n s = s ++ replicate (n - length s) ' '
       help    =    "usage: getopt-1 <option>*\n\noptions:\n  "
+                ++ "name             type  default  " 
+                ++ "summary                       \n  "
                 ++ intercalate "\n  "
-                     (fmap (\ (a,b) -> pad 15 a ++ "  " ++ pad 30 b) help_exp)
+                     (fmap (\ hs -> intercalate "  " 
+                                                (zipWith pad [ 15, 4, 7, 30] hs)
+                           ) help_exp)
       dups_exp = [ "option has no name:"
                  , "  Option: \"\", [], barity, how many?, , "
                  , "option short name 'f' is used for multiple options:"

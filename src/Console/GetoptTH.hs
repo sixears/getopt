@@ -88,6 +88,7 @@ import Fluffy.Language.TH              ( appTIO, assignN, composeApE, composeE
                                        )
 import Fluffy.Language.TH.Record       ( mkLensedRecord, mkLensedRecordDef )
 import Fluffy.Sys.Exit                 ( exitUsage )
+import Fluffy.Text.PCRE                ( subst )
 
 -- this package --------------------------------------------
 
@@ -96,12 +97,10 @@ import Console.Getopt                   ( HelpOpts(..), Option
                                         , getopts, helpme, mkOpt, errOut )
 import Console.Getopt.CmdlineParseable  ( CmdlineParseable(..), FileRO )
 import Console.Getopt.OptDesc           ( OptDesc
-                                        , descn, dfltTxt, precordDefFields
-                                        , recordFields, dfGetter
-                                        , names, name, optSetVal
-                                        , summary
-                                        , enactor
-                                        , pclvTypename
+                                        , descn, dfGetter, dfltTxt, enactor
+                                        , name, names, optSetVal
+                                        , precordDefFields, recordFields
+                                        , summary, typename
                                         )
 
 --------------------------------------------------------------------------------
@@ -577,6 +576,17 @@ concatM = fmap concat . sequence
 mkopt :: OptDesc -> ExpQ
 mkopt optdesc =
   let (shorts, longs) = partition ((1==) . length) $ optdesc ^. names
+      display_type    = dropWhile (`elem` "*?") $ optdesc ^. typename
+      display_dflt    = -- trim off any leading 'id '; replace "..." with ...;
+                        -- remove anything Nothing
+                        let disp = ("^\\\"(.+)\\\"$" `subst` "$1") $
+                                     case dfltTxt optdesc of
+                                       'i' : 'd' : ' ' : x -> x
+                                       y                   -> y
+                         in case disp of
+                              "Data.Maybe.Nothing" -> ""
+                              "Nothing"            -> ""
+                              z                    -> z
    in -- mkOpt shorts longs
       --       (optSetVal optdesc)
       --       (optdesc ^. summary)
@@ -589,8 +599,8 @@ mkopt optdesc =
              , optSetVal optdesc                 -- handler (setval*)
              , stringEQ $ optdesc ^. summary     -- summary help
              , stringEQ $ optdesc ^. descn       -- long help
-             , stringEQ $ pclvTypename optdesc   -- type name text (for help)
-             , stringEQ $ dfltTxt optdesc        -- default value (for help)
+             , stringEQ   display_type           -- type name text (for help)
+             , stringEQ   display_dflt           -- default value (for help)
              ]
 
 -- helpmeQ ---------------------------------------------------------------------
@@ -600,7 +610,7 @@ mkopt optdesc =
 helpmeQ :: ArgArity -> String -> ExpQ
 helpmeQ arity argtype =
   [| mkOpt "" [ "help" ] (helpme def { arg_arity = arity, arg_type = argtype })
-     "this help"
+     "this help; use --help=<opt> for detail (no leading hyphens on <opt>)"
      (concat [ "Provide help text: without an arg, produces a summary options "
              , "output; with an arg (--help=foo), then detailed help text for "
              , "that option (if any is available) will be output."

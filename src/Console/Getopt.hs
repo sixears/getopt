@@ -164,10 +164,10 @@ module Console.Getopt
   )
 where
 
--- get rid of setter_; make setter_st_ be setter_; update OptDesc:optSetVal +
---   OptDesc.precordDefFields
--- precordDefFields is returning a constant return $ ConE 'Nothing.  Dispense.
 -- fix --help text wrt Maybe everywhere (check long & short)
+-- add test for help text
+-- split up Getopt.hs into pieces
+-- ensure all .hs are <1,000 lines
 -- write howtouse doc for GetoptTH.hs
 -- re-apply missing fields to getopt-th.hs
 -- make tests work
@@ -220,6 +220,12 @@ where
 -- add tests that check that an option with no default causes a throw at option-
 --   parsing time if the user doesn't supply an option; test this for filero
 --   when used without a default value
+-- add --longhelp which details usage semantics and longhelp for each option 
+--   (or summary where longhelp is unavailable)
+-- add options to allow for overriding usage to TH (--help isn't mandatory for 
+--   non-TH); adding general help text to longhelp or shorthelp; adding examples
+--   (use with --examples, or appear in longhelp)
+-- add --man option
 
 {-
 
@@ -1183,7 +1189,7 @@ helpme helpopts _optname mb_optval state =
 -- helpopt ---------------------------------------------------------------------
 
 -- | printable description for a single option (typically one line of the help
---   summary); each block is a column (so name, descn)
+--   summary); each block is a column (so names, type, default, summary)
 helpopt :: Int -> Maybe Int -> Maybe Int -> Int -> Option o -> [Block]
 helpopt name_width type_width default_width desc_width o =
   let wrapw w  = wrap' def { wrap_width = w, wrap_prefix = "  " }
@@ -1216,7 +1222,8 @@ mkHelpSummary progname argstring options =
       -- prefix 0 : lest opts is empty
       name_width = min 16 . maximum $
                      (0 : fmap (length . unwords .  optionNames) options)
-      type_width = min 8 . maximum $ (0 : fmap (length . view typename) options)
+      -- the max width of the listed types; but no more than 12 chars
+      type_width = min 12 . maximum $ (0 : fmap (length . view typename) options)
       dflt_width = min 8 . maximum $ (0 : fmap (length . view dflt) options)
       just n     = if n == 0 then Nothing else Just n
       widths     = catMaybes [ Just name_width, just type_width, just dflt_width ]
@@ -1226,13 +1233,19 @@ mkHelpSummary progname argstring options =
       usage =    "usage: " ++ progname
               ++ (if not $ null options then " <option>*" else "")
               ++ (if not $ null argstring then ' ' : argstring else "")
-      opts_table = mytable $ fmap (helpopt name_width
-                                           (just type_width)
-                                           (just dflt_width)
-                                           width
-                                  )
-                                  options
-   in usage ++ "\n\noptions:\n  " ++ intercalate "\n  " (strings opts_table)
+      opts_table = mytable $ fmap (mkBlock . (:[])) 
+                                  ["name", "type", "default", "summary"]
+                             : fmap (helpopt name_width
+                                             (just type_width)
+                                             (just dflt_width)
+                                             width
+                                    )
+                                    options
+      opts_text = case options of
+                    [] -> ""
+                    _  ->    "\noptions:\n  " 
+                          ++ intercalate "\n  " (strings opts_table)
+   in usage ++ "\n" ++ opts_text
 
 -- parse_options ---------------------------------------------------------------
 
