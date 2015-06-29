@@ -164,8 +164,6 @@ module Console.Getopt
   )
 where
 
--- fix --help text wrt Maybe everywhere (check long & short)
--- add test for help text
 -- split up Getopt.hs into pieces
 -- ensure all .hs are <1,000 lines
 -- write howtouse doc for GetoptTH.hs
@@ -277,7 +275,6 @@ import Data.Functor       ( (<$>) )
 import Data.List          ( intercalate, partition )
 import Data.Maybe         ( catMaybes, fromJust, fromMaybe )
 import System.Environment ( getArgs, getProgName )
-import System.IO          ( Handle )
 import System.IO.Unsafe   ( unsafeDupablePerformIO )
 import Text.Printf        ( printf )
 
@@ -317,6 +314,7 @@ import Fluffy.Sys.IO            ( ePutStrLn )
 -- this package ------------------------
 
 import Console.Getopt.ArgArity  ( ArgArity(..), check_arity, show_arity )
+import Console.Getopt.NFHandle  ( NFHandle( NFHandle ), unhandle )
 
 --------------------------------------------------------------------------------
 -- ParseState
@@ -1321,21 +1319,6 @@ parse_options state =
 
 ignoreFirst :: (a -> b) -> z -> a -> b
 ignoreFirst f _ = f
-
--- NFHandle --------------------------------------------------------------------
-
--- | Handle that is an instance of NFData.  We use a newtype here to avoid an
---   orphaned type.
-
-newtype NFHandle = NFHandle Handle
-  deriving Eq
-instance Show NFHandle where
-  show = show . unhandle
-instance NFData NFHandle where
-
--- | extract handle
-unhandle :: NFHandle -> Handle
-unhandle (NFHandle h) = h
 
 -- ... -------------------------------------------------------------------------
 

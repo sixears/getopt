@@ -246,7 +246,7 @@ main = do
                                   "this help; use --help=<opt> for detail (no" ]
                     ]
                ++ [    "                                         " 
-                    ++ "leading hyphens on <opt>                " ]
+                    ++ "leading hyphens on <opt>)               " ]
                )
                "--help stdout"
              , like (lines err) []   "--help stderr"
