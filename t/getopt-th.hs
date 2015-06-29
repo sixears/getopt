@@ -63,7 +63,7 @@ $( mkopts "getoptsx" (ArgSome 1 3) "filename"
           , "i|int::Int<4>#integer summary\ndefault 4"
           , "maybe-i|I::?Int#maybe integer summary\no default"
           , "mebbej|J::Maybe Int<Just 5>#maybe integer summary\ndefault just 5"
---          , "mebbes|S::?String#maybe string summary\nno default"
+          , "mebbes|S::?String#maybe string summary\nno default"
           , "incr|C::incr#increment summary\nincrement int longhelp"
           , "decr|D::decr<6>#decrement summary\ndecrement int longhelp"
           , "handle::filero</etc/motd>#read-only file\nauto-opened"
@@ -128,6 +128,7 @@ main = do
   putStrLn $ "i      : "  ++ show (opts ^. i)
   putStrLn $ "mebbei : "  ++ show (opts ^. maybe_i)
   putStrLn $ "mebbej : "  ++ show (opts ^. mebbej)
+  putStrLn $ "mebbes : "  ++ show (opts ^. mebbes)
   putStrLn $ "incr   : "  ++ show (opts ^. incr)
   putStrLn $ "decr   : "  ++ show (opts ^. decr)
   putStrLn $ "handle : "  ++ show (opts ^. handle)

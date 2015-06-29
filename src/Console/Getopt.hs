@@ -164,15 +164,13 @@ module Console.Getopt
   )
 where
 
--- split up Getopt.hs into pieces
--- ensure all .hs are <1,000 lines
--- write howtouse doc for GetoptTH.hs
 -- re-apply missing fields to getopt-th.hs
+-- write howtouse doc for GetoptTH.hs
 -- make tests work
 -- add types, default values to long help
 -- upgrade to 7.10
 -- create TH Render : takes a (Q) Exp, produces a string that is the deparsed
---   code (hopefully)
+--   code (hopefully); move to fluffy?
 -- make oTypes_ much simpler; put the records elsewhere, have a simple case
 --   or multiple-clauses (all on one page), get the records to inherit (esp.
 --   incr, decr)
@@ -224,6 +222,8 @@ where
 --   non-TH); adding general help text to longhelp or shorthelp; adding examples
 --   (use with --examples, or appear in longhelp)
 -- add --man option
+-- split up Getopt.hs into pieces
+-- ensure all .hs are <1,000 lines
 
 {-
 

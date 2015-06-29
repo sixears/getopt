@@ -53,6 +53,7 @@ data Getoptsx = Getoptsx { _s       :: String
                          , _i       :: Int
                          , _maybe_i :: Maybe Int
                          , _mebbej  :: Maybe Int
+                         , _mebbes  :: Maybe String
                          , _incr    :: Int
                          , _decr    :: Int
                          , _handle  :: HandleR
@@ -131,6 +132,7 @@ main = do
                        , _decr = 6
                        , _maybe_i = Nothing
                        , _mebbej  = Just 5
+                       , _mebbes  = Nothing
                        , _handle  = HandleR "/etc/motd"
                        , _filero  = FRO "/etc/group"
                        , _mfilero = Nothing
@@ -142,6 +144,7 @@ main = do
       items = Map.fromList [ ("i", "4"), ("s", "\"\"")
                            , ("mebbei", "Nothing")
                            , ("mebbej", "Just 5")
+                           , ("mebbes", "Nothing")
                            , ("incr", "0"), ("decr", "6")
                            , ("handle", "FRO: {handle: /etc/motd}")
                            , ("filero", "{handle: /etc/group}")
@@ -190,10 +193,12 @@ main = do
              `Map.union` items)
             []
 
-    , check "mebbe (2)" [ "2", "3", "--mebbej", "Just 2" ]
+    , check "mebbe (2)" [ "2", "3", "--mebbej", "Just 2", "--mebbes", "foo" ]
             0 [ 2, 3 ]
-            (Just opt { _mebbej = Just 2 })
-            (Map.fromList [ ("mebbej", "Just 2") ] `Map.union` items)
+            (Just opt { _mebbej = Just 2, _mebbes = Just "foo" })
+            (Map.union (Map.fromList [ ("mebbej", "Just 2")
+                                     , ("mebbes", "Just \"foo\"") ] )
+                       items)
             []
 
     , check "handles" [ "2", "3"
@@ -231,6 +236,7 @@ main = do
                     , [ "-J|--mebbej" , "Maybe Int", 
                                                   "Just 5" , 
                                                        "maybe integer summary" ]
+                    , [ "-S|--mebbes" , "String", ""  , "maybe string summary" ]
                     , [ "-C|--incr"   , "incr"  , "0"      , 
                                                            "increment summary" ]
                     , [ "-D|--decr"   , "decr"  , "6"      , 
