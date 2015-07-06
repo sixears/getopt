@@ -57,6 +57,7 @@ data Getoptsx = Getoptsx { _s       :: String
                          , _incr    :: Int
                          , _decr    :: Int
                          , _handle  :: HandleR
+                         , _handle1 :: Maybe FileRO
                          , _filero  :: FileRO
                          , _mfilero :: Maybe FileRO
 --                         , _floats1 :: [Float]
@@ -134,6 +135,7 @@ main = do
                        , _mebbej  = Just 5
                        , _mebbes  = Nothing
                        , _handle  = HandleR "/etc/motd"
+                       , _handle1 = Nothing
                        , _filero  = FRO "/etc/group"
                        , _mfilero = Nothing
 --                       , _floats1 = []
@@ -205,11 +207,13 @@ main = do
                       , "--handle", "/etc/passwd"
                       , "--filero", "/etc/ld.so.conf" 
                       , "--mfilero", "/etc/hostname" 
+                      , "--handle1", "/etc/hostname"
                       ]
             0 [ 2, 3 ]
             (Just opt { _handle = HandleR     "/etc/passwd"
                       , _filero = FRO         "/etc/ld.so.conf"
                       , _mfilero = Just $ FRO "/etc/hostname"
+                      , _handle1 = Just $ FRO "/etc/hostname"
                       })
             (            Map.fromList [ ("filero", "{handle: /etc/ld.so.conf}")
                                       , ("mfilero","Just {handle: /etc/hostname}")
@@ -217,6 +221,31 @@ main = do
                                       ]
              `Map.union` items)
             []
+
+    , check "error handles" [ "2", "3"
+                            , "--handle", "/tombliboo"
+                            , "--handle1", "/etc/shadow"
+                            ]
+            3 []
+            Nothing
+            Map.empty 
+            [    "! getopt-th-hs: /tombliboo: openFile: does not exist " 
+              ++ "(No such file or directory)" 
+            ,    "! getopt-th-hs: /etc/shadow: openFile: permission denied " 
+              ++ "(Permission denied)"
+            ]
+
+    , check "error handles" [ "2", "3"
+                            , "--handle", "/etc/hostname"
+                            , "--handle", "/etc/shadow"
+                            ]
+            3 []
+            Nothing
+            Map.empty 
+            [     "! getopt-th-hs: failed to parse value '/etc/shadow' "
+               ++ "for option 'handle':"
+            , "                  option already set to '\"/etc/hostname\"'"
+            ]
 
     , check "nofile" [ "2", "3" , "--mfilero", "/etc/nostname" ]
             3 [] Nothing Map.empty
@@ -242,6 +271,8 @@ main = do
                     , [ "-D|--decr"   , "decr"  , "6"      , 
                                                            "decrement summary" ]
                     , [ "--handle"    , "filero", "/etc/motd","read-only file" ]
+                    , [ "--handle1"   , "FileRO", "", 
+                                                 "read-only file (no default)" ]
                     , [ "--filero"    , "ROFile", "/etc/group", 
                                               "IO handle (default /etc/group)" ]
                     , [ "--mfilero"   , "ROFile", "", "IO handle (no default)" ]

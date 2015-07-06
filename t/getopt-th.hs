@@ -67,7 +67,7 @@ $( mkopts "getoptsx" (ArgSome 1 3) "filename"
           , "incr|C::incr#increment summary\nincrement int longhelp"
           , "decr|D::decr<6>#decrement summary\ndecrement int longhelp"
           , "handle::filero</etc/motd>#read-only file\nauto-opened"
---          , "handle1::?filero#read-only file (no default)\nauto-opened"
+          , "handle1::?*FileRO#read-only file (no default)\nauto-opened"
           , "filero::*ROFile</etc/group>#IO handle (default /etc/group)"
           , "mfilero::?*ROFile#IO handle (no default)\nauto-opened"
 --          , "floats1::[,Float]#list of floats\nsplit on ','; no defaults"
@@ -132,6 +132,7 @@ main = do
   putStrLn $ "incr   : "  ++ show (opts ^. incr)
   putStrLn $ "decr   : "  ++ show (opts ^. decr)
   putStrLn $ "handle : "  ++ show (opts ^. handle)
+  putStrLn $ "handle1: "  ++ show (opts ^. handle1)
   putStrLn $ "filero : "  ++ show (getHandle $ opts ^. filero)
   putStrLn $ "mfilero: "  ++ show (fmap getHandle (opts ^. mfilero))
 --  putStrLn $ "floats1: "  ++ show (opts ^. floats1)
