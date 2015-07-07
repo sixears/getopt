@@ -143,18 +143,21 @@ main = do
 --                       , _ints1 = [2,3,5,7,11,13]
                        , _ints2 = [1,1,2,3]
                        }
-      items = Map.fromList [ ("i", "4"), ("s", "\"\"")
-                           , ("mebbei", "Nothing")
-                           , ("mebbej", "Just 5")
-                           , ("mebbes", "Nothing")
-                           , ("incr", "0"), ("decr", "6")
-                           , ("handle", "FRO: {handle: /etc/motd}")
-                           , ("filero", "{handle: /etc/group}")
+      items = Map.fromList [ ("i"      , "4")
+                           , ("s"      , "\"\"")
+                           , ("mebbei" , "Nothing")
+                           , ("mebbej" , "Just 5")
+                           , ("mebbes" , "Nothing")
+                           , ("incr"   , "0")
+                           , ("decr"   , "6")
+                           , ("handle" , "FRO: {handle: /etc/motd}")
+                           , ("handle1", "Nothing")
+                           , ("filero" , "{handle: /etc/group}")
                            , ("mfilero","Nothing")
 --                           , ("floats1", "[]")
                            , ("floats2", "[9.8,7.6]")
 --                           , ("ints1", "[2,3,5,7,11,13]")
-                           , ("ints2", "[1,1,2,3]")
+                           , ("ints2"  , "[1,1,2,3]")
                            ]
   
   (exit, out, err) <- readProcessWithExitCode getopt_th ["--help"] ""
@@ -215,10 +218,11 @@ main = do
                       , _mfilero = Just $ FRO "/etc/hostname"
                       , _handle1 = Just $ FRO "/etc/hostname"
                       })
-            (            Map.fromList [ ("filero", "{handle: /etc/ld.so.conf}")
-                                      , ("mfilero","Just {handle: /etc/hostname}")
-                                      , ("handle", "FRO: {handle: /etc/passwd}")
-                                      ]
+            (    Map.fromList [ ("filero", "{handle: /etc/ld.so.conf}")
+                              , ("mfilero","Just {handle: /etc/hostname}")
+                              , ("handle", "FRO: {handle: /etc/passwd}")
+                              , ("handle1", "Just FRO: {handle: /etc/hostname}")
+                              ]
              `Map.union` items)
             []
 
