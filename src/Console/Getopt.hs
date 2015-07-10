@@ -157,7 +157,8 @@ module Console.Getopt
   , setvalc, setvalc', setvalcM, setvalc'M
   , setvalm, setvalm', setvalm_, setvalm__
   , setvals, setvals', setvalsM, setvals'M
-  , setvalt, setvalf, setval', setvalAList, setvalAList'
+  , setvalt, setvaltM, setvalf
+  , setval', setvalAList, setvalAList'
 
   -- * useful extras
   , NFHandle( NFHandle ), errOut, progName, unhandle, lensLens
@@ -165,6 +166,7 @@ module Console.Getopt
 where
 
 -- re-apply missing fields to getopt-th.hs
+-- hlint
 -- write howtouse doc for GetoptTH.hs
 -- make tests work
 -- add types, default values to long help
@@ -1125,6 +1127,9 @@ setvalAList = setvalAList' "="
 -- | special case of setValue for bool options
 setvalt :: Lens' o Bool -> OptParse o
 setvalt = setValue ValNone (\ _ _ _ -> return True)
+
+setvaltM :: Bool -> Lens' o (Maybe Bool) -> OptParse o
+setvaltM b l = setvalt $ mblens b l
 
 -- | special case of setValue for negatively-setting bool options
 setvalf :: Lens' o Bool -> OptParse o

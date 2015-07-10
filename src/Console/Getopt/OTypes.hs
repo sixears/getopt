@@ -44,14 +44,15 @@ import Language.Haskell.TH  ( Exp ( AppE, ConE, LitE, SigE, VarE               )
 
 -- fluffy ------------------------------
 
+import Fluffy.Data.List         ( splitOn2 )
 import Fluffy.Language.TH       ( composeApE, composeE, mAppE, stringE )
 import Fluffy.Language.TH.Type  ( readType, strToT )
 
 -- this package --------------------------------------------
 
-import Console.Getopt                   ( setval
+import Console.Getopt                   ( setval, setvaltM
                                         , setvalcM, setvalc'M
-                                        , setvalsM
+                                        , setvalsM, setvals'M
                                         )
 import Console.Getopt.CmdlineParseable  ( FileRO, enactOpt )
 import Console.Getopt.ParseOpt          ( parseAs )
@@ -156,8 +157,11 @@ setval_as_maybe t = -- [q| const $ setval ((fmap Just) . (parseAs t)) |]
 nothingE :: Exp
 nothingE = ConE 'Nothing
 
+falseE :: Exp
+falseE = ConE 'False
+
 emptyE :: Exp
-emptyE     = ConE '[]
+emptyE = ConE '[]
 
 justEmptyE :: Exp
 justEmptyE = AppE (ConE 'Just) emptyE -- [q| Just [] |]
@@ -165,7 +169,7 @@ justEmptyE = AppE (ConE 'Just) emptyE -- [q| Just [] |]
 -- oType for a list type, i.e., "[<type>]", e.g., "[String]"
 
 oType_List :: String -> OptType
-oType_List t = 
+oType_List t =
   OptType { pclvTypename_   = t
           , optionTypename_ = t
           , setter_         = -- [q| setvalsM (parseAs tt) |]
@@ -178,6 +182,21 @@ oType_List t =
           , startIsDefault_ = False
           }
 
+oType_ListSplit :: String -> String -> OptType
+oType_ListSplit delim t =
+  let list_t = "[" ++ t ++ "]"
+  in OptType { pclvTypename_   = list_t
+             , optionTypename_ = list_t
+             , setter_         = -- [q| setvals' d (parseAs t) |]
+                                 AppE (AppE (VarE 'setvals'M) (stringE delim))
+                                      (AppE (VarE 'parseAs) (stringE t))
+             , parser_         = readParser list_t
+             , enactor_        = VarE 'return
+             , default_        = Just emptyE
+             , start_          = Just emptyE
+             , startIsDefault_ = False
+             }
+
 ------------------------------------------------------------
 
 -- oType for incr/decr
@@ -189,7 +208,7 @@ justZeroE :: Exp
 justZeroE = AppE (ConE 'Just) zeroE
 
 oType_Counter :: Name -> OptType
-oType_Counter f = 
+oType_Counter f =
   OptType { pclvTypename_   = "Int"
           , optionTypename_ = "Int"
           , setter_         = VarE f
@@ -204,7 +223,7 @@ oType_Counter f =
 ----------------------------------------
 
 oType_FileRO :: OptType
-oType_FileRO = 
+oType_FileRO =
   OptType { pclvTypename_   = "FilePath"
           , optionTypename_ = "FileRO"
           , setter_         = -- [q| const $ setval return |]
@@ -220,7 +239,7 @@ oType_FileRO =
 ----------------------------------------
 
 oType_Maybe :: String -> OptType
-oType_Maybe t = 
+oType_Maybe t =
   OptType { pclvTypename_   = "Maybe " ++ t
           , optionTypename_ = '?' : t
           , setter_         = setval_as_maybe t
@@ -234,7 +253,7 @@ oType_Maybe t =
 ----------------------------------------
 
 oType_MaybeIO :: String -> OptType
-oType_MaybeIO t = 
+oType_MaybeIO t =
   OptType { pclvTypename_   = "Maybe String"
           , optionTypename_ = '?' : t
           , setter_         = setval_as_maybe t
@@ -251,9 +270,9 @@ oType_MaybeIO t =
           }
 
 ----------------------------------------
-                                                               
+
 oType_IO :: String -> OptType
-oType_IO t = 
+oType_IO t =
   OptType { pclvTypename_   = "String"
           , optionTypename_ = t
           , setter_         = setval_as t
@@ -267,7 +286,7 @@ oType_IO t =
 ----------------------------------------
 
 oType_Simple :: String -> OptType
-oType_Simple t = 
+oType_Simple t =
   OptType { pclvTypename_   = t
           , optionTypename_ = t
           , setter_         = setval_as t
@@ -284,32 +303,54 @@ oType_Simple t =
           , startIsDefault_ = True
           }
 
+----------------------------------------
+
+oType_Bool :: OptType
+oType_Bool =
+  OptType { pclvTypename_   = "Bool"
+          , optionTypename_ = "Bool"
+          , setter_         = VarE 'setvaltM
+          , parser_         = readParser "Bool"
+          , enactor_        = VarE 'return
+          , default_        = Just falseE
+          -- since values are set rather than updated, it makes
+          -- no sense to have a start /= default
+          , start_          = Just falseE
+          , startIsDefault_ = True
+          }
+
 ------------------------------------------------------------
 
 oType :: String -> OptType
-oType s = let o = oType_ s in o -- traceShow o o
 
-oType_ :: String -> OptType
-
-oType_ "incr"   = oType_Counter 'setvalcM
-oType_ "decr"   = oType_Counter 'setvalc'M
-oType_ "filero" = oType_FileRO
-oType_ ('?' : '*' : t@(h :_))
+oType "incr"    = oType_Counter 'setvalcM   -- incr
+oType "decr"    = oType_Counter 'setvalc'M  -- decr
+oType "filero"  = oType_FileRO              -- filero
+oType ('?' : '*' : t@(h :_))                -- ?*TYPE    -- (maybe IO)
     | isUpper h = oType_MaybeIO t
     | otherwise = error $ "no such option type: '?*" ++ t ++ "'"
-oType_ ('?':t)  = oType_Maybe t
-oType_ tt@('[':t) 
+oType ('?':t)   = oType_Maybe t             -- ?TYPE     -- (maybe)
+oType ('[':',':t)                           -- [,TYPE]   -- (list, split on ,)
+    | last t == ']'
+                = oType ("[<,>" ++ t)
+oType tt@('[':'<':s)                        -- [<X>TYPE] -- (list, split on X)
+    | '>' `elem` s && last s == ']'
+                = let (d,t') = splitOn2 ">" s
+                      t      = init t'
+                   in oType_ListSplit d t
+    | otherwise = error $ "no such option type: '" ++ tt ++ "'"
+oType tt@('[':t)                            -- [TYPE]    -- (list)
     | and [ not (null t), (isUpper (head t) || '[' == head t) , last t == ']' ]
                 = oType_List tt
-oType_ ('*' : t@(h : _)) 
-    | isUpper h = oType_IO t 
+oType ('*' : t@(h : _))                     -- *TYPE     -- (IO)
+    | isUpper h = oType_IO t
     | otherwise = error $ "no such option type: '*" ++ t ++ "'"
-oType_ []       = error "empty typestring"
-oType_ t@(h:_) 
+oType []        = oType_Bool                -- simple boolean
+oType t@(h:_)                               -- TYPE      -- simple type
     | isUpper h = oType_Simple t
     | otherwise = error $ "no such option type: '" ++ t ++ "'"
 
---Y oType_ tt@('[' : '*' : t@(h :_))
+--Y oType tt@('[' : '*' : t@(h :_))
 --Y   | isUpper h && last t == ']' =
 --Y       def { pclvTypename_   = '[' : t
 --Y           , optionTypename_ = '[' : t
@@ -322,8 +363,8 @@ oType_ t@(h:_)
 --Y
 --Y   | otherwise = error $ "no such option type: '" ++ tt ++ "'"
 
---X oType_ ('[':',':t) | last t == ']' = oType_ ("[<,>" ++ t)
---X oType_ tt@('[':'<':s) | '>' `elem` s && last s == ']' =
+--X oType ('[':',':t) | last t == ']' = oType ("[<,>" ++ t)
+--X oType tt@('[':'<':s) | '>' `elem` s && last s == ']' =
 --X         let (d,t') = splitOn2 ">" s
 --X             t      = init t'
 --X             list_t = "[" ++ t ++ "]"

@@ -39,6 +39,10 @@ import Control.Lens  ( (^.), makeLenses, set, view )
 import Text.Regex.Applicative  ( RE
                                , (<|>), anySym, many, psym, some, string, sym )
 
+-- safe --------------------------------
+
+import Safe  ( headMay )
+
 -- template-haskell --------------------
 
 import Language.Haskell.TH         ( ExpQ )
@@ -134,8 +138,8 @@ instance Show OptDesc where
             -- printed default & start value
             stStr = if startIsDefault (o ^. typename)
                     then ""
-                    else if st == "Data.Maybe.Nothing" 
-                         then "" 
+                    else if st == "Data.Maybe.Nothing"
+                         then ""
                          else "<" ++ st ++ ">"
             dfst = if isTypeD (o ^. dflt)
                    then if "" == stStr then "" else "<>" ++ stStr
@@ -166,8 +170,10 @@ errf typ tt s =
 -- | typename regex; /^::([][?.0-9A-Za-z]+)/
 
 opttypename :: RE Char String
-opttypename = string "::" *> 
-                some (psym (\c -> isAlphaNum c || c `elem` "*[?]., "))
+opttypename = string "::" *>
+                -- we allow many (including zero) to allow for bool options
+                -- which are signified by having no declared type
+                many (psym (\c -> isAlphaNum c || c `elem` "*[?]., "))
 
 -- | default value regex; /^([<({])[^(inverse \1)](inverse \1)/
 
@@ -203,7 +209,7 @@ startVal :: Maybe String -- ^ start value, passed in by user between <>
          -> String       -- ^ user-requested option type
          -> String       -- ^ full user option type text
          -> ExpQ
-startVal s t str = maybe (typeStartE t str) 
+startVal s t str = maybe (typeStartE t str)
                          (return . AppE (parser t) .LitE . StringL) s
 
 -- typeDefaultE -----------------------
@@ -275,6 +281,7 @@ readsPrecOptDesc _ s =
                           , pOptVal s
                           , pOptSumm
                           , pOptDescn ] s
+
       identifier :: RE Char [Char]
       -- we trap the potential leading '-' in checking later on, to give a
       -- more explicit error msg
@@ -367,7 +374,7 @@ readsPrecOptDesc _ s =
 
       -- disallow the use of a default value with a '?' type
       check_type_no_default_on_qmark =
-        mkM (\ x ->    ((== '?') . head . view typename) x
+        mkM (\ x ->    ((== Just '?') . headMay . view typename) x
                     && pprintQ (x ^. dflt) /= pprintQ [| Nothing |])
             (\ x -> printf "no default allowed with '?TYPE': '%s' (%s)"
                            s (x ^. typename))

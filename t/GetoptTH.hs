@@ -60,8 +60,9 @@ data Getoptsx = Getoptsx { _s       :: String
                          , _handle1 :: Maybe FileRO
                          , _filero  :: FileRO
                          , _mfilero :: Maybe FileRO
---                         , _floats1 :: [Float]
+                         , _floats1 :: [Float]
                          , _floats2 :: [Float]
+                         , _bool    :: Bool
 --                         , _ints1   :: [Int]
                          , _ints2   :: [Int]
                          }
@@ -127,10 +128,11 @@ main = do
       check        = check_invocation getopt_th
       pad n s      = s ++ replicate (n - length s) ' '
 
-  let opt   = Getoptsx { _s = ""
-                       , _i = 4
-                       , _incr = 0
-                       , _decr = 6
+  let opt   = Getoptsx { _bool    = False
+                       , _s       = ""
+                       , _i       = 4
+                       , _incr    = 0
+                       , _decr    = 6
                        , _maybe_i = Nothing
                        , _mebbej  = Just 5
                        , _mebbes  = Nothing
@@ -138,12 +140,13 @@ main = do
                        , _handle1 = Nothing
                        , _filero  = FRO "/etc/group"
                        , _mfilero = Nothing
---                       , _floats1 = []
+                       , _floats1 = []
                        , _floats2 = [9.8,7.6]
 --                       , _ints1 = [2,3,5,7,11,13]
                        , _ints2 = [1,1,2,3]
                        }
-      items = Map.fromList [ ("i"      , "4")
+      items = Map.fromList [ ("bool"   , "False")
+                           , ("i"      , "4")
                            , ("s"      , "\"\"")
                            , ("mebbei" , "Nothing")
                            , ("mebbej" , "Just 5")
@@ -154,7 +157,7 @@ main = do
                            , ("handle1", "Nothing")
                            , ("filero" , "{handle: /etc/group}")
                            , ("mfilero","Nothing")
---                           , ("floats1", "[]")
+                           , ("floats1", "[]")
                            , ("floats2", "[9.8,7.6]")
 --                           , ("ints1", "[2,3,5,7,11,13]")
                            , ("ints2"  , "[1,1,2,3]")
@@ -171,13 +174,25 @@ main = do
     , check "multiple arguments" [ "2", "3", "5" ] 0 [ 2, 3, 5 ] (Just opt)
             items []
 
-    , check "args & opts" [ "2", "3", "--string", "bob", "--int", "8" ]
-            0 [ 2, 3 ] (Just opt { _s = "bob", _i = 8 })
-            (Map.fromList [ ("i", "8"), ("s", "\"bob\"") ] `Map.union` items) []
+    , check "args & opts" [ "2", "3", "--string", "bob", "--int", "8", "-b" ]
+            0 [ 2, 3 ] (Just opt { _s = "bob", _i = 8, _bool = True })
+            (Map.fromList [ ("i", "8"), ("s", "\"bob\""), ("bool", "True") ] 
+             `Map.union` items) []
 
     , check "ints2" [ "3", "--ints2", "8", "--ints2", "7", "--ints2", "6" ]
             0 [ 3 ] (Just opt { _ints2 = [5,8,8,7,6] })
             (Map.fromList [ ("ints2", "[5,8,8,7,6]") ] `Map.union` items) []
+
+    , check "floats1" [ "3", "--floats1", "3.14,2.72", "--floats1", "5.86" ]
+            0 [ 3 ] (Just opt { _floats1 = [ 3.14, 2.72, 5.86 ] })
+            (Map.fromList [ ("floats1", "[3.14,2.72,5.86]") ] `Map.union` items) 
+            []
+
+    , check "floats2" [ "3", "--floats2", "0.42", "--floats2", "0.84" ]
+            0 [ 3 ] (Just opt { _floats2 = [ 9.8, 7.6, 0.42, 0.84 ] })
+            (Map.union (Map.fromList [ ("floats2", "[9.8,7.6,0.42,0.84]") ])
+                       items) 
+            []
 
     , check "incr" [ "2", "3", "--incr" ]
             0 [ 2, 3 ] (Just opt { _incr = 1 })
@@ -280,8 +295,9 @@ main = do
                     , [ "--filero"    , "ROFile", "/etc/group", 
                                               "IO handle (default /etc/group)" ]
                     , [ "--mfilero"   , "ROFile", "", "IO handle (no default)" ]
-
-                    , ["--floats2"    , "[Float]","[9.8,7.6]","list of floats" ]
+                    , [ "--floats1"   , "[Float]","[]"       ,"list of floats" ]
+                    , [ "--floats2"   , "[Float]","[9.8,7.6]","list of floats" ]
+                    , [ "-b|--bool"   , ""      , "False"    , "just a bool"   ]
                     , [ "--ints2"     , "[Int]",  "[1,1,2,3]", "list of ints"  ]
                     , [ "--help"      , "", "", 
                                   "this help; use --help=<opt> for detail (no" ]

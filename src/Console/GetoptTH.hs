@@ -576,12 +576,15 @@ concatM = fmap concat . sequence
 mkopt :: OptDesc -> ExpQ
 mkopt optdesc =
   let (shorts, longs) = partition ((1==) . length) $ optdesc ^. names
-      display_type    = dropWhile (`elem` "*?") $ optdesc ^. typename
+      display_type    = case dropWhile (`elem` "*?") $ optdesc ^. typename of
+                          '[' : ',' : x -> '[' : x
+                          x             -> x
       display_dflt    = -- trim off any leading 'id '; replace "..." with ...;
                         -- remove anything Nothing
                         let disp = ("^\\\"(.+)\\\"$" `subst` "$1") $
                                      case dfltTxt optdesc of
                                        'i' : 'd' : ' ' : x -> x
+                                       "GHC.Types.[]"      -> "[]"
                                        y                   -> y
                          in case disp of
                               "Data.Maybe.Nothing" -> ""
@@ -591,8 +594,8 @@ mkopt optdesc =
       --       (optSetVal optdesc)
       --       (optdesc ^. summary)
       --       (optdesc ^. descn)
-      --       (pclvTypename optdesc)
-      --       (strtTxt optdesc)
+      --       (display_type)
+      --       (display_dflt)
       mAppEQ [ return $ VarE 'mkOpt
              , appE (varE 'concat) (lift shorts) -- short options
              , lift longs                        -- long  options

@@ -70,9 +70,11 @@ $( mkopts "getoptsx" (ArgSome 1 3) "filename"
           , "handle1::?*FileRO#read-only file (no default)\nauto-opened"
           , "filero::*ROFile</etc/group>#IO handle (default /etc/group)"
           , "mfilero::?*ROFile#IO handle (no default)\nauto-opened"
---        , "floats1::[,Float]#list of floats\nsplit on ','; no defaults"
+          , "floats1::[,Float]#list of floats\nsplit on ','; no defaults"
           , "floats2::[Float]<[9.8,7.6]>#list of floats\nfibonacci floats"
---          , "ints1::[,Int]<[2,3,5,7,11,13]><[9,8]>#list of ints\nprimes;split ,"
+          , "bool|b::#just a bool"
+          -- !!! simple bool - no type !!!
+--          , "ints1::[<:>Int]<[2,3,5,7,11,13]><[9,8]>#list of ints\nprimes;split ,"
           , "ints2::[Int]<[1,1,2,3]><[5,8]>#list of ints\nfibonacci ints"
 --          , "lfilero::[*ROFile]</etc/*.conf>#IO handles (default /etc/*.conf)\n"
 --          , "ip::TCP<127.0.0.1:80>#a TCP socket referred by ip address/hostname and port"
@@ -124,6 +126,7 @@ main :: IO ()
 main = do
   (args, opts) <- getoptsx (return . (readType "Int" :: String -> Int))
   forM_ [ "ARGS: " ++ show args, "OPTS: "  ++ show opts ] putStrLn
+  putStrLn $ "bool   : "  ++ show (opts ^. bool)
   putStrLn $ "s      : "  ++ show (opts ^. s)
   putStrLn $ "i      : "  ++ show (opts ^. i)
   putStrLn $ "mebbei : "  ++ show (opts ^. maybe_i)
@@ -135,7 +138,7 @@ main = do
   putStrLn $ "handle1: "  ++ show (opts ^. handle1)
   putStrLn $ "filero : "  ++ show (getHandle $ opts ^. filero)
   putStrLn $ "mfilero: "  ++ show (fmap getHandle (opts ^. mfilero))
---  putStrLn $ "floats1: "  ++ show (opts ^. floats1)
+  putStrLn $ "floats1: "  ++ show (opts ^. floats1)
   putStrLn $ "floats2: "  ++ show (opts ^. floats2)
 --  putStrLn $ "ints1  : "  ++ show (opts ^. ints1)
   putStrLn $ "ints2  : "  ++ show (opts ^. ints2)
