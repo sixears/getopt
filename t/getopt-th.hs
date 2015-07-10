@@ -70,7 +70,7 @@ $( mkopts "getoptsx" (ArgSome 1 3) "filename"
           , "handle1::?*FileRO#read-only file (no default)\nauto-opened"
           , "filero::*ROFile</etc/group>#IO handle (default /etc/group)"
           , "mfilero::?*ROFile#IO handle (no default)\nauto-opened"
---git           , "strings::[String]#strings with no defaults"
+          , "strings::[String]#strings with no defaults"
           , "floats1::[,Float]#list of floats\nsplit on ','; no defaults"
           , "floats2::[Float]<[9.8,7.6]>#list of floats\nfibonacci floats"
           , "bool|b::#just a bool"
@@ -138,6 +138,7 @@ main = do
   putStrLn $ "handle1: "  ++ show (opts ^. handle1)
   putStrLn $ "filero : "  ++ show (getHandle $ opts ^. filero)
   putStrLn $ "mfilero: "  ++ show (fmap getHandle (opts ^. mfilero))
+  putStrLn $ "strings: "  ++ show (opts ^. strings)
   putStrLn $ "floats1: "  ++ show (opts ^. floats1)
   putStrLn $ "floats2: "  ++ show (opts ^. floats2)
   putStrLn $ "ints1  : "  ++ show (opts ^. ints1)

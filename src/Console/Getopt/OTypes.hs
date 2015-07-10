@@ -168,34 +168,27 @@ justEmptyE = AppE (ConE 'Just) emptyE -- [q| Just [] |]
 
 -- oType for a list type, i.e., "[<type>]", e.g., "[String]"
 
-oType_List :: String -> OptType
-oType_List t =
+oType_Listish :: String -> Exp -> OptType
+oType_Listish t f =
   OptType { pclvTypename_   = t
           , optionTypename_ = t
-          , setter_         = -- [q| setvalsM (parseAs tt) |]
-                              AppE (VarE 'setvalsM)
+          , setter_         = -- [q| f (parseAs tt) |]
+                              AppE f
                                    (AppE (VarE 'parseAs) (stringE t))
           , parser_         = readParser t
           , enactor_        = VarE 'return
-          , default_        = Just justEmptyE
+          , default_        = Just emptyE
           , start_          = Just emptyE
           , startIsDefault_ = False
           }
 
+                   
+oType_List :: String -> OptType
+oType_List t = oType_Listish t (VarE 'setvalsM)
+
 oType_ListSplit :: String -> String -> OptType
 oType_ListSplit delim t =
-  let list_t = "[" ++ t ++ "]"
-  in OptType { pclvTypename_   = list_t
-             , optionTypename_ = list_t
-             , setter_         = -- [q| setvals' d (parseAs t) |]
-                                 AppE (AppE (VarE 'setvals'M) (stringE delim))
-                                      (AppE (VarE 'parseAs) (stringE t))
-             , parser_         = readParser list_t
-             , enactor_        = VarE 'return
-             , default_        = Just emptyE
-             , start_          = Just emptyE
-             , startIsDefault_ = False
-             }
+  oType_Listish ("[" ++ t ++ "]") (AppE (VarE 'setvals'M) (stringE delim))
 
 ------------------------------------------------------------
 

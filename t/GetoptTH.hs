@@ -60,6 +60,7 @@ data Getoptsx = Getoptsx { _s       :: String
                          , _handle1 :: Maybe FileRO
                          , _filero  :: FileRO
                          , _mfilero :: Maybe FileRO
+                         , _strings :: [String]
                          , _floats1 :: [Float]
                          , _floats2 :: [Float]
                          , _bool    :: Bool
@@ -140,6 +141,7 @@ main = do
                        , _handle1 = Nothing
                        , _filero  = FRO "/etc/group"
                        , _mfilero = Nothing
+                       , _strings = []
                        , _floats1 = []
                        , _floats2 = [9.8,7.6]
                        , _ints1 = [2,3,5,7]
@@ -157,6 +159,7 @@ main = do
                            , ("handle1", "Nothing")
                            , ("filero" , "{handle: /etc/group}")
                            , ("mfilero","Nothing")
+                           , ("strings", "[]")
                            , ("floats1", "[]")
                            , ("floats2", "[9.8,7.6]")
                            , ("ints1", "[2,3,5,7]")
@@ -186,6 +189,11 @@ main = do
     , check "ints2" [ "3", "--ints2", "8", "--ints2", "7", "--ints2", "6" ]
             0 [ 3 ] (Just opt { _ints2 = [5,8,8,7,6] })
             (Map.fromList [ ("ints2", "[5,8,8,7,6]") ] `Map.union` items) []
+
+    , check "strings" [ "3", "--strings", "foo", "--strings", "bar" ]
+            0 [ 3 ] (Just opt { _strings = [ "foo", "bar" ] })
+            (Map.fromList [ ("strings", "[\"foo\",\"bar\"]") ] `Map.union` items) 
+            []
 
     , check "floats1" [ "3", "--floats1", "3.14,2.72", "--floats1", "5.86" ]
             0 [ 3 ] (Just opt { _floats1 = [ 3.14, 2.72, 5.86 ] })
@@ -299,6 +307,8 @@ main = do
                     , [ "--filero"    , "ROFile", "/etc/group", 
                                               "IO handle (default /etc/group)" ]
                     , [ "--mfilero"   , "ROFile", "", "IO handle (no default)" ]
+                    , [ "--strings"   , "[String]","[]",
+                                                    "strings with no defaults" ]
                     , [ "--floats1"   , "[Float]","[]"       ,"list of floats" ]
                     , [ "--floats2"   , "[Float]","[9.8,7.6]","list of floats" ]
                     , [ "-b|--bool"   , ""      , "False"    , "just a bool"   ]
