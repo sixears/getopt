@@ -165,6 +165,7 @@ module Console.Getopt
   )
 where
 
+-- should lensLens just be mkIso (or similar) along with composition?
 -- re-apply missing fields to getopt-th.hs
 -- add negated bool to GetoptTH (type !)
 -- add ++ & -- as synonyms for incr, decr
@@ -274,7 +275,7 @@ setValue'          -- optname, mb_optval, args, old_value
 -- base --------------------------------
 
 import Control.Exception  ( SomeException, evaluate, try )
-import Control.Monad      ( foldM, forM_, unless, when )
+import Control.Monad      ( foldM, forM_, liftM, unless, when )
 import Data.Char          ( isAlphaNum )
 import Data.Either        ( partitionEithers )
 import Data.Functor       ( (<$>) )
@@ -787,7 +788,7 @@ setval f = setval' (\s o -> case o of
 -- lensLens :: Lens' Temp a -> (a -> b) -> (b -> a) -> Lens' Temp b
 lensLens :: (a -> b) -> (b -> a) -> Lens' x a -> Lens' x b
 lensLens aToB bToA l functor p =
-  ((p &) . (set l . bToA)) <$> (functor (aToB (p ^. l)))
+  ((p &) . set l . bToA) <$> functor (aToB (p ^. l))
 
 -- | setval for counter values; increments on each call
 
@@ -816,7 +817,7 @@ setvalc'M b l = setvalc' $ mblens b l
 -- | setValue for many-valued args, thus appending each new value to a list
 
 setvals :: (NFData b) => (String -> IO b) -> Lens' o [b] -> OptParse o
-setvals f = setval' (\ i is -> f i >>= return . (is ++) . (:[]))
+setvals f = setval' (\ i is -> liftM ((is ++) . (: [])) (f i))
 
 -- setvals' --------------------------------------------------------------------
 
@@ -827,8 +828,7 @@ setvals' :: (NFData b)
          => String                     -- ^ delimiter to split incoming strings
          -> (String -> IO b)           -- ^ how to parse individual values
          -> Lens' o [b] -> OptParse o
-setvals' s f =
-  setval' (\ i is -> mapM f (splitOnL s i) >>= return . (is ++))
+setvals' s f = setval' (\ i is -> liftM (is ++) (mapM f (splitOnL s i)))
 
 -- | like setvals, but writes to a Maybe List; if Maybe is Nothing, then a start
 --   value of the lens will be implied (being the first arg); the given value

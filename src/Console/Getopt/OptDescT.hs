@@ -19,7 +19,7 @@ where
 -- base --------------------------------
 
 import Control.Applicative  ( (<*), (<*>), (*>), optional )
-import Control.Monad        ( msum )
+import Control.Monad        ( mplus, msum )
 import Data.Char            ( isAlphaNum, isDigit, isUpper )
 import Data.Functor         ( (<$>) )
 import Data.List            ( intercalate )
@@ -136,11 +136,10 @@ instance Show OptDesc where
                              -- prints
                              Just u  -> pprintQ expq == pprintQ u
             -- printed default & start value
-            stStr = if startIsDefault (o ^. typename)
+            stStr = if    startIsDefault (o ^. typename) 
+                       || st == "Data.Maybe.Nothing"
                     then ""
-                    else if st == "Data.Maybe.Nothing"
-                         then ""
-                         else "<" ++ st ++ ">"
+                    else "<" ++ st ++ ">"
             dfst = if isTypeD (o ^. dflt)
                    then if "" == stStr then "" else "<>" ++ stStr
                    else "<" ++ df ++ ">" ++ stStr
@@ -174,7 +173,7 @@ opttypename = let concat5 a b c d e = concat [a,b,c,d,e]
               in string "::" *>
                    -- we allow many (including zero) to allow for bool options
                    -- which are signified by having no declared type
-                   (    (many (psym (\c -> isAlphaNum c || c `elem` "*[?]., ")))
+                   (    many (psym (\c -> isAlphaNum c || c `elem` "*[?]., "))
                     <|> ( -- [<xx>Type]
                           concat5 <$>
                              string "[<" <*> many (psym (/= '>')) 
@@ -264,7 +263,7 @@ setTypeDfStMg str (type_str, mb_default_str, mb_start_str, mb_munge_str) =
                                     type_str str)
                    mb_start_str
          else let -- start string if specified, else default string if specified
-                  mb_strt_dflt_str = maybe mb_default_str Just mb_start_str
+                  mb_strt_dflt_str = mb_start_str `mplus` mb_default_str -- maybe mb_default_str Just mb_start_str
                   -- value to set OptDesc strt to
                   strt_val         = startVal mb_strt_dflt_str type_str str
                in set strt strt_val

@@ -26,7 +26,8 @@ where
 
 -- base --------------------------------
 
-import Data.Maybe  ( fromMaybe )
+import Control.Monad  ( liftM )
+import Data.Maybe     ( fromMaybe )
 
 -- lenses ------------------------------
 
@@ -127,7 +128,7 @@ dfGetter o =
 
       -- TH version of fromMaybe <default> . view <pclvField o>
       getter_mb  d = composeE (AppE (VarE 'fromMaybe) d) (viewE $ pclvField o)
-   in (o ^. dflt) >>= return . getter_mb
+   in liftM getter_mb (o ^. dflt) -- (o ^. dflt) >>= return . getter_mb
 
 -- recordFields ----------------------------------------------------------------
 
