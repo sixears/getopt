@@ -170,10 +170,19 @@ errf typ tt s =
 -- | typename regex; /^::([][?.0-9A-Za-z]+)/
 
 opttypename :: RE Char String
-opttypename = string "::" *>
-                -- we allow many (including zero) to allow for bool options
-                -- which are signified by having no declared type
-                many (psym (\c -> isAlphaNum c || c `elem` "*[?]., "))
+opttypename = let concat5 a b c d e = concat [a,b,c,d,e]
+              in string "::" *>
+                   -- we allow many (including zero) to allow for bool options
+                   -- which are signified by having no declared type
+                   (    (many (psym (\c -> isAlphaNum c || c `elem` "*[?]., ")))
+                    <|> ( -- [<xx>Type]
+                          concat5 <$>
+                             string "[<" <*> many (psym (/= '>')) 
+                               <*> string ">" 
+                                 <*> many (psym isAlphaNum) <*> string "]"
+--                           (++) <$> string "[<" <*> string ":>Int]"
+                        )
+                   )
 
 -- | default value regex; /^([<({])[^(inverse \1)](inverse \1)/
 

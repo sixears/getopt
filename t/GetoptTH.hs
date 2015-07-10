@@ -63,7 +63,7 @@ data Getoptsx = Getoptsx { _s       :: String
                          , _floats1 :: [Float]
                          , _floats2 :: [Float]
                          , _bool    :: Bool
---                         , _ints1   :: [Int]
+                         , _ints1   :: [Int]
                          , _ints2   :: [Int]
                          }
   deriving (Eq, Show, Read)
@@ -142,7 +142,7 @@ main = do
                        , _mfilero = Nothing
                        , _floats1 = []
                        , _floats2 = [9.8,7.6]
---                       , _ints1 = [2,3,5,7,11,13]
+                       , _ints1 = [2,3,5,7]
                        , _ints2 = [1,1,2,3]
                        }
       items = Map.fromList [ ("bool"   , "False")
@@ -159,7 +159,7 @@ main = do
                            , ("mfilero","Nothing")
                            , ("floats1", "[]")
                            , ("floats2", "[9.8,7.6]")
---                           , ("ints1", "[2,3,5,7,11,13]")
+                           , ("ints1", "[2,3,5,7]")
                            , ("ints2"  , "[1,1,2,3]")
                            ]
   
@@ -178,6 +178,10 @@ main = do
             0 [ 2, 3 ] (Just opt { _s = "bob", _i = 8, _bool = True })
             (Map.fromList [ ("i", "8"), ("s", "\"bob\""), ("bool", "True") ] 
              `Map.union` items) []
+
+    , check "ints1" [ "3", "--ints1", "-8:-7", "--ints1", "6" ]
+            0 [ 3 ] (Just opt { _ints1 = [9,8,-8,-7,6] })
+            (Map.fromList [ ("ints1", "[9,8,-8,-7,6]") ] `Map.union` items) []
 
     , check "ints2" [ "3", "--ints2", "8", "--ints2", "7", "--ints2", "6" ]
             0 [ 3 ] (Just opt { _ints2 = [5,8,8,7,6] })
@@ -298,6 +302,7 @@ main = do
                     , [ "--floats1"   , "[Float]","[]"       ,"list of floats" ]
                     , [ "--floats2"   , "[Float]","[9.8,7.6]","list of floats" ]
                     , [ "-b|--bool"   , ""      , "False"    , "just a bool"   ]
+                    , [ "--ints1"     , "[Int]",  "[2,3,5,7]", "list of ints"  ]
                     , [ "--ints2"     , "[Int]",  "[1,1,2,3]", "list of ints"  ]
                     , [ "--help"      , "", "", 
                                   "this help; use --help=<opt> for detail (no" ]

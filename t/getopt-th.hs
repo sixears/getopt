@@ -73,8 +73,7 @@ $( mkopts "getoptsx" (ArgSome 1 3) "filename"
           , "floats1::[,Float]#list of floats\nsplit on ','; no defaults"
           , "floats2::[Float]<[9.8,7.6]>#list of floats\nfibonacci floats"
           , "bool|b::#just a bool"
-          -- !!! simple bool - no type !!!
---          , "ints1::[<:>Int]<[2,3,5,7,11,13]><[9,8]>#list of ints\nprimes;split ,"
+          , "ints1::[<:>Int]<[2,3,5,7]><[9,8]>#list of ints\nprimes;split ,"
           , "ints2::[Int]<[1,1,2,3]><[5,8]>#list of ints\nfibonacci ints"
 --          , "lfilero::[*ROFile]</etc/*.conf>#IO handles (default /etc/*.conf)\n"
 --          , "ip::TCP<127.0.0.1:80>#a TCP socket referred by ip address/hostname and port"
@@ -140,6 +139,6 @@ main = do
   putStrLn $ "mfilero: "  ++ show (fmap getHandle (opts ^. mfilero))
   putStrLn $ "floats1: "  ++ show (opts ^. floats1)
   putStrLn $ "floats2: "  ++ show (opts ^. floats2)
---  putStrLn $ "ints1  : "  ++ show (opts ^. ints1)
+  putStrLn $ "ints1  : "  ++ show (opts ^. ints1)
   putStrLn $ "ints2  : "  ++ show (opts ^. ints2)
 --  getopts getoptsx_ (ArgSome 1 3) "filename" return >>= print

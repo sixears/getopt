@@ -457,7 +457,10 @@ mkEffector :: [OptDesc]                           -- ^ option field list
 mkEffector optdescs getoptName = do
   let effectorSig = tsArrows [ pclv_typename getoptName
                              , appTIO (AppT (AppT (ConT ''Either)
-                                             (AppT ListT (ConT ''NFException))) (ov_typename getoptName)) ]
+                                                  (AppT ListT
+                                                        (ConT ''NFException)))
+                                            (ov_typename getoptName))
+                             ]
   pclv    <- newName "pclv" -- name of the parameter to the effector; which is
                             -- a PCLV record
   effectorBody <- mkEffectorBody optdescs getoptName pclv
@@ -577,6 +580,7 @@ mkopt :: OptDesc -> ExpQ
 mkopt optdesc =
   let (shorts, longs) = partition ((1==) . length) $ optdesc ^. names
       display_type    = case dropWhile (`elem` "*?") $ optdesc ^. typename of
+                          '[' : '<' : y -> '[' : (tail . dropWhile (/= '>')) y
                           '[' : ',' : x -> '[' : x
                           x             -> x
       display_dflt    = -- trim off any leading 'id '; replace "..." with ...;

@@ -166,6 +166,8 @@ module Console.Getopt
 where
 
 -- re-apply missing fields to getopt-th.hs
+-- add negated bool to GetoptTH (type !)
+-- add ++ & -- as synonyms for incr, decr
 -- hlint
 -- write howtouse doc for GetoptTH.hs
 -- make tests work
@@ -220,7 +222,9 @@ where
 --   when used without a default value
 -- add --longhelp which details usage semantics and longhelp for each option 
 --   (or summary where longhelp is unavailable)
--- add options to allow for overriding usage to TH (--help isn't mandatory for 
+-- add options to allow for overriding usage (including types, defaults for 
+--   individual options, as well as general cmd usage) to TH
+--   (--help isn't mandatory for 
 --   non-TH); adding general help text to longhelp or shorthelp; adding examples
 --   (use with --examples, or appear in longhelp)
 -- add --man option
