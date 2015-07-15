@@ -383,8 +383,8 @@ main = do
                                                          "typeDefault Maybe Int"
        , is (typeD "?[[Int]]") (pprintQ [| Nothing |])
                                                           "typeDefault ?[[Int]]"
-       , is (typeD "[Int]") (pprintQ [| Just [] |])          "typeDefault [Int]"
-       , is (typeD "[[Int]]") (pprintQ [| Just [] |])      "typeDefault [[Int]]"
+       , is (typeD "[Int]") (pprintQ [| [] |])               "typeDefault [Int]"
+       , is (typeD "[[Int]]") (pprintQ [| [] |])           "typeDefault [[Int]]"
 
        , show_p0
        , dfg_p0

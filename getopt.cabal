@@ -161,3 +161,16 @@ Benchmark getopt-th-hs
   build-depends:       base, data-default, deepseq, lens, regex-applicative,
                        fluffy, test-tap, getopt
   default-language:    Haskell2010
+
+----------------------------------------
+
+-- not really a benchmark; rather a compiled test script that I don't want
+-- installed
+Benchmark getopt-th-simple
+  ghc-options:         -O2 -W -Wall -fhelpful-errors
+  type:                exitcode-stdio-1.0
+  main-is:             getopt-th-simple.hs
+  hs-source-dirs:      t
+  build-depends:       base, data-default, deepseq, lens, regex-applicative,
+                       fluffy, test-tap, getopt
+  default-language:    Haskell2010

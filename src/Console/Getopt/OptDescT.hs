@@ -354,7 +354,7 @@ readsPrecOptDesc _ s =
                            (head $ (filter $ (== '-') . head) (x ^. names))
             )
 
-      -- check that the name of the lens doesn't begin with an upper-case letter
+      -- check that the name of the lens is non-empty
       check_lens_defined :: OptDesc -> Maybe String
       check_lens_defined =
         mkM (null . view lensname)

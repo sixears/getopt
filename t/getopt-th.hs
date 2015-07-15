@@ -73,7 +73,7 @@ $( mkopts "getoptsx" (ArgSome 1 3) "filename"
           , "strings::[String]#strings with no defaults"
           , "floats1::[,Float]#list of floats\nsplit on ','; no defaults"
           , "floats2::[Float]<[9.8,7.6]>#list of floats\nfibonacci floats"
-          , "bool|b::#just a bool"
+          , "bool|b>boolie::#just a bool"
           , "ints1::[<:>Int]<[2,3,5,7]><[9,8]>#list of ints\nprimes;split ,"
           , "ints2::[Int]<[1,1,2,3]><[5,8]>#list of ints\nfibonacci ints"
 --          , "lfilero::[*ROFile]</etc/*.conf>#IO handles (default /etc/*.conf)\n"
@@ -126,7 +126,7 @@ main :: IO ()
 main = do
   (args, opts) <- getoptsx (return . (readType "Int" :: String -> Int))
   forM_ [ "ARGS: " ++ show args, "OPTS: "  ++ show opts ] putStrLn
-  putStrLn $ "bool   : "  ++ show (opts ^. bool)
+  putStrLn $ "bool   : "  ++ show (opts ^. boolie)
   putStrLn $ "s      : "  ++ show (opts ^. s)
   putStrLn $ "i      : "  ++ show (opts ^. i)
   putStrLn $ "mebbei : "  ++ show (opts ^. maybe_i)

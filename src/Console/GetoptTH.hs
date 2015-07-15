@@ -20,7 +20,135 @@ concisely, and thus not detracting from the real business of the program.
  -}
 
 module Console.GetoptTH
-  ( CmdlineParseable(..), FileRO, mkopts )
+  ( -- * Synopsis
+
+    {- | To use this module:
+
+             (0) list the standard imports
+             (0) call mkopts, with initial args and a list of opt-defining
+                 strings
+             (0) call getopts to parse your incoming argv
+             (0) profit
+
+         Here is a simple example.
+
+         Please note the distinction between /arguments/, which are the standard
+         textual values given after the program name; and the /options/, which
+         are optional tweaks given using '--foo' or '-F'; thus in @grep
+         -r --include \\*.hs hlib GetOptions@, the @hlib@ and @GetOptions@ are
+         considered arguments, while the @-r@ and the @--include \\*.hs@ are
+         considered options.
+
+         You must use the __LANGUAGE TemplateHaskell__ option.  This is not 
+         shown in the literal examples below, because I cannot work out how to 
+         render them within Haddock.
+
+         @
+         import Control.Monad            ( forM_ )
+         import Data.Default             ( Default( def ) )
+         import Control.Lens             ( (^.) )
+         import Fluffy.Language.TH.Type  ( readType )
+         import Console.Getopt           ( ArgArity( ArgSome ) )
+         import Console.GetoptTH         ( FileRO, mkopts )
+
+         $( mkopts "getopts" (ArgSome 1 3) "integer"
+                   [ "bool|b::#just a bool"
+                   , "s|string::String#a string\nlong description"
+                   , "maybe-i|I::?Int#maybe integer summary\no default"
+                   , "handle::filero</etc/motd>#read-only file\nauto-opened"
+                   , "floats1::[,Float]<[1.0,2.0]><>#list of floats\nsplit on ','"
+                 ])
+
+         main :: IO ()
+         main = do
+           (args, opts) <- getopts (return . (readType "Int" :: String -> Int))
+           forM_ [ "ARGS: " ++ show args, "OPTS: "  ++ show opts ] putStrLn
+           putStrLn $ "bool   : "  ++ show (opts ^. bool)
+           putStrLn $ "s      : "  ++ show (opts ^. s)
+           putStrLn $ "mebbei : "  ++ show (opts ^. maybe_i)
+           putStrLn $ "handle : "  ++ show (opts ^. handle)
+           putStrLn $ "floats1: "  ++ show (opts ^. floats1)
+         @
+
+         Line by line; we start with
+
+         > {-# LANGUAGE TemplateHaskell #-}
+
+         We are using TemplateHaskell to allow us to generate the required code at
+         compile time (this enables the splice @$( ... )@ among other things).
+
+         Of the imports, these are required for use of GetoptTH:
+
+         > import Data.Default             ( Default( def ) )
+         > import Console.Getopt           ( ArgArity( .. ) )
+         > import Console.GetoptTH         ( mkopts )
+
+         Data.Default is required because of the use of @def@ in the generated
+         code.  mkopts is required because that's what you call in the splice (the
+         bit between the @ $( ... ) @.  @ArgArity@ is required to tell mkopts how
+         many arguments your program.
+
+         The other imports shown in the full example are required for our example,
+         but not for every use of GetoptTH.
+
+         @
+         $( mkopts "getopts" (ArgSome 1 3) "integer"
+                   [ "bool|b::#just a bool"
+                   , "s|string::String#a string\nlong description"
+                   , "maybe-i|I::?Int#maybe integer summary\no default"
+                   , "handle::filero\<\/etc\/motd\>#read-only file\nauto-opened"
+                   , "floats1::[,Float]\<[1.0,2.0]\>\<\>#list of floats\nsplit on ','"
+                 ])
+         @
+
+         This is where the real action happens.  The mkopts call takes the name of
+         a function to create; a note of how many arguments your program accepts
+         (in the example given, between 1 & 3 inclusive); a descriptive text for
+         what those arguments look like (in this case, integers); and then a list
+         of option descriptors (each a string)
+
+         Those option descriptor strings take the general form
+
+         > NAME(|NAME)*>LENS::TYPE(<DEFAULT>)?(<START>)?#SUMMARY(\nDESCRIPTION)?
+
+         The names specify the names of options on the cmdline.
+         Single-character names must be preceded with a single '-';
+         multi-character names must be preceded with '--' when used on the
+         cmdline.  Names may consist of alphanumeric characters (in either
+         case), or digits or hyphens (except for the first character).  Names
+         are case-sensitive.
+
+         By default, the name of the generated lens is the name of the first
+         given name; excepting that any hyphens are replaced with underscores.
+         However, a lens name may be explicitly given with a @>LENS@ in the 
+         options string.
+
+         The lens name, whether derived from the first option name or given
+         explicitly, must satisfy the rules for a valid lens name, which are:
+
+             (0) The name may not be empty
+             (0) The first character of the name must be a lower-case letter
+             (0) All subsequent characters of the name may be letter characters 
+                 (of either case), digits, or underscores
+         
+         The type name specifies the target type of the lensed value.
+
+         @
+         main :: IO ()
+         main = do
+           (args, opts) \<- getopts (return . (readType "Int" :: String -\> Int))
+           forM_ [ "ARGS: " ++ show args, "OPTS: "  ++ show opts ] putStrLn
+           putStrLn $ "bool   : "  ++ show (opts ^. bool)
+           putStrLn $ "s      : "  ++ show (opts ^. s)
+           putStrLn $ "mebbei : "  ++ show (opts ^. maybe_i)
+           putStrLn $ "handle : "  ++ show (opts ^. handle)
+           putStrLn $ "floats1: "  ++ show (opts ^. floats1)
+         @
+
+    -}
+
+   CmdlineParseable(..), FileRO, mkopts
+  )
 where
 
 -- THE PLAN: the programmer will create options using mkopts or similar.  An
@@ -112,7 +240,7 @@ import Console.Getopt.OptDesc           ( OptDesc
 {- | primary entry point for options generation
 
      @
-       $( mkopts "getoptsx" (ArgSome 1 3) "filename"
+       $( mkopts "getoptsx" (ArgSome 1 3) "integer"
                  [ "s|string\>str::String#string summary"
                  , "i|int|Int::Int\<4\>#integer summary\ndefault 4"
                  , "C\>incr::incr#increment summary\nincrement int longhelp"
@@ -255,7 +383,7 @@ mkopts :: String                           -- ^ name of the getopts fn to
        -> DecsQ
 
 mkopts getoptName arity argtype optcfgs = do
-  {- mkopts "getoptsx" (ArgSome 1 3) "filename"
+  {- mkopts "getoptsx" (ArgSome 1 3) "integer"
            [ "s|string::String#summary"
            , "incr|C::incr#increment summary\nincrement int longhelp"
            , "handle::filero</etc/motd>#read-only file\nauto-opened"
@@ -308,7 +436,7 @@ mkopts getoptName arity argtype optcfgs = do
                          "Maybe FilePath" "GHC.Base.id \"/etc/motd\"",
 
                  , mkOpt "" ["help"] helpme (def { arg_arity = ArgSome 1 3
-                                                 , argtype  = "filename" })
+                                                 , argtype  = "integer" })
                          "this help" "Provide help text..." "" ""
                  ]
 
@@ -330,7 +458,7 @@ mkopts getoptName arity argtype optcfgs = do
 
     getoptsx :: (NFData a, Show a) => (String -> IO a) -> IO ([a], Getoptsx)
     getoptsx = (t2apply (checkEx . getoptsx_effect))
-               . (getopts getoptsx_ (ArgSome 1 3) "filename")
+               . (getopts getoptsx_ (ArgSome 1 3) "integer")
 
   -}
 
@@ -378,7 +506,7 @@ mkopts getoptName arity argtype optcfgs = do
             --  getoptsx :: (NFData a, Show a) => (String -> IO a)
             --                                 -> IO ([a], Getoptsx)
             --  getoptsx = (t2apply (checkEx . getoptsx_effect))
-            --             . (getopts getoptsx_ (ArgSome 1 3) "filename")
+            --             . (getopts getoptsx_ (ArgSome 1 3) "integer")
             --  above)
           , mkGetoptTH optdescs getoptName arity argtype
           ]
@@ -411,7 +539,7 @@ mkopts getoptName arity argtype optcfgs = do
                                      -> IO ([a], Getoptsx)
 
       getoptsx = (t2apply (checkEx . getoptsx_effect))
-                 . (getopts getoptsx_ (ArgSome 1 3) "filename")
+                 . (getopts getoptsx_ (ArgSome 1 3) "integer")
       above)
  -}
 
@@ -488,7 +616,7 @@ mk_effector ts nam g = mkSimpleTypedFun ts (mkName nam) [g]
 --
 --   (getoptsx :: (NFData a, Show a) => (String -> IO a) -> IO ([a], Getoptsx)
 --    getoptsx = (t2apply (checkEx . getoptsx_effect))
---               . (getopts getoptsx_ (ArgSome 1 3) "filename")
+--               . (getopts getoptsx_ (ArgSome 1 3) "integer")
 --    above)
 
 mk_getopt_th :: Type    -- ^ type signature of generated fn
@@ -499,7 +627,7 @@ mk_getopt_th :: Type    -- ^ type signature of generated fn
 
 mk_getopt_th sig getoptName arity argtype =
   mkSimpleTypedFun sig (mkName getoptName) [] (infix2E lhs (VarE '(.)) rhs)
-    where -- (getopts getoptsx_ (ArgSome 1 3) "filename" above)
+    where -- (getopts getoptsx_ (ArgSome 1 3) "integer" above)
           rhs = mAppE [ VarE 'getopts, cfg_name getoptName
                       , liftAA arity, (LitE . StringL) argtype ]
           -- (t2apply (checkEx . getoptsx_effect) above)

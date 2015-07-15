@@ -163,9 +163,6 @@ falseE = ConE 'False
 emptyE :: Exp
 emptyE = ConE '[]
 
-justEmptyE :: Exp
-justEmptyE = AppE (ConE 'Just) emptyE -- [q| Just [] |]
-
 -- oType for a list type, i.e., "[<type>]", e.g., "[String]"
 
 oType_Listish :: String -> Exp -> OptType
@@ -335,7 +332,7 @@ oType tt@('[':'<':s)                        -- [<X>TYPE] -- (list, split on X)
 oType tt@('[':t)                            -- [TYPE]    -- (list)
     | and [ not (null t), (isUpper (head t) || '[' == head t) , last t == ']' ]
                 = oType_List tt
-oType ('*' : t@(h : _))                     -- *TYPE     -- (IO)
+oType ('*' : t@(h : _))                     -- '*TYPE'     -- (IO)
     | isUpper h = oType_IO t
     | otherwise = error $ "no such option type: '*" ++ t ++ "'"
 oType []        = oType_Bool                -- simple boolean
@@ -355,25 +352,6 @@ oType t@(h:_)                               -- TYPE      -- simple type
 --Y           }
 --Y
 --Y   | otherwise = error $ "no such option type: '" ++ tt ++ "'"
-
---X oType ('[':',':t) | last t == ']' = oType ("[<,>" ++ t)
---X oType tt@('[':'<':s) | '>' `elem` s && last s == ']' =
---X         let (d,t') = splitOn2 ">" s
---X             t      = init t'
---X             list_t = "[" ++ t ++ "]"
---X          in def { pclvTypename_   = list_t
---X                 , optionTypename_ = list_t
---X                 , setter_         = -- [q| setvals' d (parseAs t) |]
---X                                     AppE (AppE (VarE 'setvals') (stringE d))
---X                                          (AppE (VarE 'parseAs) (stringE t))
---X                 , parser_         = readParser list_t
---X                 , enactor_        = VarE 'return
---X                 , default_        = Just $ ConE '[]
---X                 , start_          = Just $ ConE '[]
---X                 }
---X                        | otherwise = error $ "no such option type: '" ++ tt
---X                                                                       ++ "'"
-
 
 -- typeDefault -----------------------------------------------------------------
 

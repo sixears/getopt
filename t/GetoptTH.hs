@@ -63,7 +63,7 @@ data Getoptsx = Getoptsx { _s       :: String
                          , _strings :: [String]
                          , _floats1 :: [Float]
                          , _floats2 :: [Float]
-                         , _bool    :: Bool
+                         , _boolie  :: Bool
                          , _ints1   :: [Int]
                          , _ints2   :: [Int]
                          }
@@ -129,7 +129,7 @@ main = do
       check        = check_invocation getopt_th
       pad n s      = s ++ replicate (n - length s) ' '
 
-  let opt   = Getoptsx { _bool    = False
+  let opt   = Getoptsx { _boolie  = False
                        , _s       = ""
                        , _i       = 4
                        , _incr    = 0
@@ -178,7 +178,7 @@ main = do
             items []
 
     , check "args & opts" [ "2", "3", "--string", "bob", "--int", "8", "-b" ]
-            0 [ 2, 3 ] (Just opt { _s = "bob", _i = 8, _bool = True })
+            0 [ 2, 3 ] (Just opt { _s = "bob", _i = 8, _boolie = True })
             (Map.fromList [ ("i", "8"), ("s", "\"bob\""), ("bool", "True") ] 
              `Map.union` items) []
 

@@ -165,13 +165,17 @@ module Console.Getopt
   )
 where
 
+-- write howtouse doc for GetoptTH.hs
+-- remove def from GetoptTH.hs to obviate required import in getopt-th-simple ?
 -- should lensLens just be mkIso (or similar) along with composition?
 -- re-apply missing fields to getopt-th.hs
 -- add negated bool to GetoptTH (type !)
 -- add ++ & -- as synonyms for incr, decr
 -- hlint
--- write howtouse doc for GetoptTH.hs
+-- render {-# LANGUAGE TemplateHaskell #-} in howtos in Getopt.hs, GetoptTH.hs
 -- make tests work
+-- enable bundling for single-char bool options (and single-char options taking
+--   an optional value)
 -- add types, default values to long help
 -- upgrade to 7.10
 -- create TH Render : takes a (Q) Exp, produces a string that is the deparsed
@@ -843,6 +847,10 @@ setvalsM :: (NFData b)
          => (String -> IO b) -> [b] -> Lens' o (Maybe [b]) -> OptParse o
 setvalsM f b l = setvals f $ mblens b l
 
+-- | like setvals', but writes to a Maybe List; if Maybe is Nothing, then a 
+--   start value of the lens will be implied (being the first arg); the given
+--   value then be appended to the underlying list as for setvals.
+
 setvals'M :: (NFData b)
           => String -> (String -> IO b) -> [b] -> Lens' o (Maybe [b]) 
           -> OptParse o
@@ -1131,6 +1139,9 @@ setvalAList = setvalAList' "="
 -- | special case of setValue for bool options
 setvalt :: Lens' o Bool -> OptParse o
 setvalt = setValue ValNone (\ _ _ _ -> return True)
+
+-- | like setvalt, but writes to a Maybe Bool lens; the prior value, if any, of
+--   the lens will be ignored.
 
 setvaltM :: Bool -> Lens' o (Maybe Bool) -> OptParse o
 setvaltM b l = setvalt $ mblens b l
